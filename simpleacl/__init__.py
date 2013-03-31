@@ -34,10 +34,8 @@ ALL_PRIVILEGES = 'all'
 ALL_CONTEXTS = 'all'
 
 
-class Role(object):
-    """Holds a role value"""
-
-    _parents = []  # Order is important, so use the list(), not set
+class ObjectBase(object):
+    """Abstract class"""
 
     def __init__(self, name):
         self.name = name
@@ -57,8 +55,19 @@ class Role(object):
     def __str__(self):
         return str(self.name)
 
+    def __repr__(self):
+        return b'<{0}>'.format(self.__bytes__())
+
     def get_name(self):
         return self.name
+
+
+class Role(ObjectBase):
+    """Holds a role value"""
+
+    def __init__(self, name):
+        self.name = name
+        self._parents = []  # Order is important, so use the list(), not set
 
     def add_parent(self, parent):
         if parent not in self._parents:
@@ -68,35 +77,13 @@ class Role(object):
         return self._parents
 
 
-class Privilege(object):
+class Privilege(ObjectBase):
     """Holds a privilege value"""
-
-    def __init__(self, name):
-        self.name = name
-
-    def __eq__(self, other):
-        return self.name.__eq__(getattr(other, 'name', other))
-
-    def __ne__(self, other):
-        return self.name.__ne__(getattr(other, 'name', other))
-
-    def __hash__(self):
-        return self.name.__hash__()
-
-    def __bytes__(self):
-        return str(self.name).encode('utf-8')
-
-    def __str__(self):
-        return str(self.name)
-
-    def get_name(self):
-        return self.name
+    pass
 
 
-class Context(object):
+class Context(ObjectBase):
     """Holds a role value"""
-
-    _parents = []  # Order is important, so use the list(), not set
 
     def __init__(self, name):
         """For example, name == 'blog.post.15'.
@@ -104,24 +91,7 @@ class Context(object):
         You can create a subclass, and override this method
         to obtain name from model."""
         self.name = name
-
-    def __eq__(self, other):
-        return self.name.__eq__(getattr(other, 'name', other))
-
-    def __ne__(self, other):
-        return self.name.__ne__(getattr(other, 'name', other))
-
-    def __hash__(self):
-        return self.name.__hash__()
-
-    def __bytes__(self):
-        return str(self.name).encode('utf-8')
-
-    def __str__(self):
-        return str(self.name)
-
-    def get_name(self):
-        return self.name
+        self._parents = []  # Order is important, so use the list(), not set
 
     def add_parent(self, parent):
         if parent not in self._parents:
@@ -152,10 +122,9 @@ class SimpleBackend(object):
         self._acl = {}
         self._contexts = {}
 
-    def add_role(self, instance, parents=()):
+    def add_role(self, instance):
         """Adds role"""
-        self._roles.setdefault(instance.get_name(), instance)
-        return self
+        self._roles[instance.get_name()] = instance
 
     def get_role(self, name):
         """Returns a role instance"""
@@ -168,8 +137,7 @@ class SimpleBackend(object):
 
     def add_privilege(self, instance):
         """Adds privilege"""
-        self._privileges.setdefault(instance.get_name(), instance)
-        return self
+        self._privileges[instance.get_name()] = instance
 
     def get_privilege(self, name):
         """Returns a privilege instance"""
@@ -180,10 +148,9 @@ class SimpleBackend(object):
                 'Privilege must be added before requested.'
             )
 
-    def add_context(self, instance, parents=()):
+    def add_context(self, instance):
         """Adds privilege"""
-        self._contexts.setdefault(instance.get_name(), instance)
-        return self
+        self._contexts[instance.get_name()] = instance
 
     def get_context(self, name):
         """Returns a privilege instance"""
@@ -242,7 +209,10 @@ class Acl(object):
         if isinstance(name_or_instance, bytes):
             name_or_instance = str(name_or_instance)
         if isinstance(name_or_instance, str):
-            instance = self._backend.role_class(name_or_instance)
+            try:
+                instance = self.get_role(name_or_instance)
+            except MissingRole:
+                instance = self._backend.role_class(name_or_instance)
         elif isinstance(name_or_instance, self._backend.role_class):
             instance = name_or_instance
         else:
@@ -274,7 +244,10 @@ class Acl(object):
         if isinstance(name_or_instance, bytes):
             name_or_instance = str(name_or_instance)
         if isinstance(name_or_instance, str):
-            instance = self._backend.privilege_class(name_or_instance)
+            try:
+                instance = self.get_privilege(name_or_instance)
+            except MissingPrivilege:
+                instance = self._backend.privilege_class(name_or_instance)
         elif isinstance(name_or_instance, self._backend.privilege_class):
             instance = name_or_instance
         else:
@@ -292,23 +265,19 @@ class Acl(object):
 
     def get_privilege(self, name_or_instance):
         """Returns the identified privilege instance"""
-        if isinstance(name_or_instance, bytes):
-            name_or_instance = str(name_or_instance)
-        if isinstance(name_or_instance, str):
-            return self._backend.get_privilege(name_or_instance)
         if isinstance(name_or_instance, self._backend.privilege_class):
             return name_or_instance
-        raise Exception(
-            'Unable to get a Privelege of type: {0}'\
-                .format(type(name_or_instance).__name__)
-        )
+        return self._backend.get_privilege(name_or_instance)
 
     def add_context(self, name_or_instance, parents=()):
         """Adds a privilege to the ACL"""
         if isinstance(name_or_instance, bytes):
             name_or_instance = str(name_or_instance)
         if isinstance(name_or_instance, str):
-            instance = self._backend.context_class(name_or_instance)
+            try:
+                instance = self.get_context(name_or_instance)
+            except MissingContext:
+                instance = self._backend.context_class(name_or_instance)
         elif isinstance(name_or_instance, self._backend.privilege_class):
             instance = name_or_instance
         else:
@@ -326,16 +295,9 @@ class Acl(object):
 
     def get_context(self, name_or_instance):
         """Returns the identified privilege instance"""
-        if isinstance(name_or_instance, bytes):
-            name_or_instance = str(name_or_instance)
-        if isinstance(name_or_instance, str):
-            return self._backend.get_context(name_or_instance)
         if isinstance(name_or_instance, self._backend.context_class):
             return name_or_instance
-        raise Exception(
-            'Unable to get a Privelege of type: {0}'\
-                .format(type(name_or_instance).__name__)
-        )
+        return self._backend.get_context(name_or_instance)
 
     def add_rule(self, role, privileges=ALL_PRIVILEGES,
                  context=ALL_CONTEXTS, allow=True):
@@ -480,8 +442,10 @@ class Acl(object):
                 self.add_role(value)
 
         for row in clean.get('acl', ()):
-            self.allow(row['role'], row['privilege'],
-                       row.get(context, context), row['allow'])
+            self.add_rule(
+                row['role'], row['privilege'],
+                row.get(context, context), row['allow']
+            )
         return self
 
     @classmethod
@@ -501,6 +465,6 @@ try:
 except NameError:
     pass
 else:
-    for cls in (Role, Privilege, Context, ):
+    for cls in (ObjectBase, ):
         cls.__unicode__ = cls.__str__
         cls.__str__ = cls.__bytes__
