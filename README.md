@@ -15,12 +15,10 @@ Instructions for simpleacl Acl class
     >>> acl.allow('admin', 'all')
     >>> acl.allow('member', ['view_page', 'edit_page'])
     >>> acl.allow('guest', 'view_page')
-    >>> # set who the active role based on what the user is.
-    >>> acl.active_role_is('member')
     >>> # check if the user is allowed to the privilege
-    >>> acl.is_allowed('edit_page')
+    >>> acl.is_allowed('member', 'edit_page')
     True
-    >>> acl.is_allowed('delete_page')
+    >>> acl.is_allowed('member', 'delete_page')
     False
 
 Instructions for simpleacl middleware - Pylons - DEPRICATED
