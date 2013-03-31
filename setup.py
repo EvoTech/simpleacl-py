@@ -21,7 +21,7 @@ sdict = {
     'maintainer' : 'Ivan Zakrevsky',
     'maintainer_email' : 'ivzak@yandex.ru',
     'keywords' : ['acl', 'simpleacl', 'access control list', 'auth list'],
-    'license' : 'LGPLv2+ License',
+    'license' : 'GPLv3 License',
     'packages' : ['simpleacl'],
     'test_suite' : 'tests.all_tests',
     'classifiers' : [
