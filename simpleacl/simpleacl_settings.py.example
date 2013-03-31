@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 INITIAL_DATA = {
     'roles': [
         'superuser',
-        ['user_2', ['superuser', ], ]
+        ['user_1', ['superuser', ], ]
     ],
     'acl': [{
         'role': 'superuser',
