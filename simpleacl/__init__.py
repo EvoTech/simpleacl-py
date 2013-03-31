@@ -392,6 +392,9 @@ class Acl(object):
 
         for given privilege in given given context
         """
+        if context is None:
+            context = ALL_CONTEXTS
+
         role = self.get_role(role)
         privilege = self.get_privilege(privilege)
         context = self.get_context(context)
