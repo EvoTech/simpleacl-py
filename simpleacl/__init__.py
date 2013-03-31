@@ -140,9 +140,7 @@ class Context(object):
 
 class SimpleBackend(object):
     """A simple storage."""
-    _roles = None
-    _privileges = None
-    _acl = None
+
     role_class = Role
     privilege_class = Privilege
     context_class = Context

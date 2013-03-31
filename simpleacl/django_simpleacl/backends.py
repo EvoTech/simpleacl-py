@@ -25,6 +25,4 @@ class ObjectPermissionBackend(object):
                 get_role(user), get_privilege(perm), get_context(obj)
             )
         except:
-            pass
-
-        return False
+            return False
