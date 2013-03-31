@@ -22,8 +22,7 @@ try:
 except:
     import json
 
-from simpleacl.exceptions import (MissingRole, MissingActiveRole,
-    MissingPrivilege, MissingContext)
+from simpleacl.exceptions import MissingRole, MissingPrivilege, MissingContext
 
 try:
     str = unicode  # Python 2.* compatible
@@ -221,7 +220,7 @@ class SimpleBackend(object):
             return False
 
     def is_allowed(self, role, privilege, context=None, undef=None):
-        """Returns True if active role is allowed
+        """Returns True if role is allowed
 
         for given privilege in given given context
         """
@@ -234,12 +233,8 @@ class SimpleBackend(object):
 class Acl(object):
     """Access control list."""
 
-    active_role = None
-
-    def __init__(self, backend_class=None):
+    def __init__(self, backend_class=SimpleBackend):
         """Constructor."""
-        if backend_class is None:
-            backend_class = SimpleBackend
         self._backend = backend_class()
         self.add_privilege(ALL_PRIVILEGES)
         self.add_context(ALL_CONTEXTS)
@@ -392,26 +387,12 @@ class Acl(object):
         except MissingPrivilege:
             return False
 
-    def active_role_is(self, role):
-        """Sets active role"""
-        self.active_role = self.get_role(role)
-        return self
-
-    def set_active_role(self, role):
-        """Just alias for self.active_role_is()"""
-        return self.active_role_is(role)
-
-    def is_allowed(self, privilege, context=ALL_CONTEXTS, undef=False):
-        """Returns True if active role is allowed
+    def is_allowed(self, role, privilege, context=ALL_CONTEXTS, undef=False):
+        """Returns True if role is allowed
 
         for given privilege in given given context
         """
-        if not self.active_role:
-            raise MissingActiveRole(
-                "A role must be set active before checking permissions"
-            )
-
-        role = self.active_role
+        role = self.get_role(role)
         privilege = self.get_privilege(privilege)
         context = self.get_context(context)
 
@@ -421,49 +402,45 @@ class Acl(object):
 
         # Parents support for roles
         for parent in role.get_parents():
-            self.active_role_is(parent)
-            allow = self.is_allowed(privilege, context, None)
+            allow = self.is_allowed(parent, privilege, context, None)
             if allow is not None:
                 return allow
 
         # Hierarchical support for roles
         if '.' in role.get_name():
             parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
-            self.active_role_is(parent)
-            allow = self.is_allowed(privilege, context, None)
+            allow = self.is_allowed(parent, privilege, context, None)
             if allow is not None:
                 return allow
-
-        self.active_role_is(role)
 
         # Hierarchical support for privileges
         if '.' in privilege.get_name():
             parent = self.get_privilege(
                 privilege.get_name().rsplit('.', 1).pop(0)
             )
-            allow = self.is_allowed(parent, context, None)
+            allow = self.is_allowed(role, parent, context, None)
             if allow is not None:
                 return allow
 
         # Parents support for context
         for parent in context.get_parents():
-            allow = self.is_allowed(privilege, parent, None)
+            allow = self.is_allowed(role, privilege, parent, None)
             if allow is not None:
                 return allow
 
         # Checks for global context or privilege
         if privilege.get_name() !=  ALL_PRIVILEGES:
-            allow = self.is_allowed(ALL_PRIVILEGES, context, None)
+            allow = self.is_allowed(role, ALL_PRIVILEGES, context, None)
             if allow is not None:
                 return allow
 
         if context.get_name() != ALL_CONTEXTS:
-            allow = self.is_allowed(privilege, ALL_CONTEXTS, None)
+            allow = self.is_allowed(role, privilege, ALL_CONTEXTS, None)
             if allow is not None:
                 return allow
 
         if privilege.get_name() != ALL_PRIVILEGES and context.get_name() != ALL_CONTEXTS:
-            allow = self._backend.is_allowed(ALL_PRIVILEGES, ALL_CONTEXTS, None)
+            allow = self._backend.is_allowed(role, ALL_PRIVILEGES, ALL_CONTEXTS, None)
             if allow is not None:
                 return allow
 

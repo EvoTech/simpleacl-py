@@ -9,8 +9,7 @@ if __name__ == '__main__':
     ))
 
 import simpleacl
-from simpleacl.exceptions import MissingRole, MissingPrivilege,\
-    MissingActiveRole
+from simpleacl.exceptions import MissingRole, MissingPrivilege
 from simpleacl import json
 
 
@@ -65,17 +64,10 @@ class TestSimpleAcl(unittest.TestCase):
                        simpleacl.Privilege)
         )
 
-    def test_setting_active_role(self):
-        self.acl.add_role('role1')
-        self.acl.add_role('role2')
-        self.acl.add_privilege('privilege1')
-        self.acl.active_role_is('role1')
-        self.assertTrue(self.acl.active_role.get_name() == 'role1')
-
     def test_cant_set_to_missing_role(self):
         self.assertRaises(
             MissingRole,
-            self.acl.active_role_is,
+            self.acl.get_role,
             'role999'
         )
 
@@ -91,23 +83,21 @@ class TestSimpleAcl(unittest.TestCase):
         self.acl.allow('role1', 'privilege1')
         self.assertFalse(self.acl.role_has_privilege('role1', 'privilege999'))
 
-    def test_active_role_is_allowed(self):
+    def test_role_is_allowed(self):
         self.acl.add_role('role1')
         self.acl.add_role('role2')
         self.acl.add_privilege('privilege1')
         self.acl.add_privilege('privilege2')
         self.acl.allow('role1', 'privilege2')
-        self.acl.active_role_is('role1')
-        self.assertTrue(self.acl.is_allowed('privilege2'))
+        self.assertTrue(self.acl.is_allowed('role1', 'privilege2'))
 
-    def test_active_role_is_not_allowed(self):
+    def test_role_is_not_allowed(self):
         self.acl.add_role('role1')
         self.acl.add_role('role2')
         self.acl.add_privilege('privilege1')
         self.acl.add_privilege('privilege2')
         self.acl.allow('role1', 'privilege2')
-        self.acl.active_role_is('role1')
-        self.assertTrue(not self.acl.is_allowed('privilege1'))
+        self.assertTrue(not self.acl.is_allowed('role1', 'privilege1'))
 
     def test_cant_allow_missing_roles(self):
         self.acl.add_role('role1')
@@ -135,10 +125,9 @@ class TestSimpleAcl(unittest.TestCase):
         self.acl.add_privilege('r2')
         self.acl.add_privilege('r3')
         self.acl.allow('role1', 'all')
-        self.acl.active_role_is('role1')
-        self.assertTrue(self.acl.is_allowed('r1'))
-        self.assertTrue(self.acl.is_allowed('r2'))
-        self.assertTrue(self.acl.is_allowed('r3'))
+        self.assertTrue(self.acl.is_allowed('role1', 'r1'))
+        self.assertTrue(self.acl.is_allowed('role1', 'r2'))
+        self.assertTrue(self.acl.is_allowed('role1', 'r3'))
 
     def test_ignores_on_double_allow(self):
         self.acl.add_role('role1')
@@ -146,16 +135,6 @@ class TestSimpleAcl(unittest.TestCase):
         self.acl.add_privilege('r2')
         self.acl.allow('role1', 'r1')
         self.acl.allow('role1', 'r1')
-
-    def test_cant_check_is_allowed_without_active_role(self):
-        self.acl.add_role('role1')
-        self.acl.add_privilege('r1')
-        self.acl.allow('role1', 'r1')
-        self.assertRaises(
-            MissingActiveRole,
-            self.acl.is_allowed,
-            'r1'
-        )
 
     def test_object_creation_from_json(self):
         test_dict = {'roles': ['role1', 'role2'], 'privileges': ['r1', 'r2',
