@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #######################################################################
 from __future__ import absolute_import, unicode_literals
+from functools import partial
 try:
     import simplejson as json
 except:
@@ -76,6 +77,11 @@ class Role(ObjectBase):
     def get_parents(self):
         return self._parents
 
+    def __getattr__(self, name):
+        if name in ('is_allowed', 'allow', 'remove_allow', 'remove_rule',
+                    'deny', 'add_rule', 'remove_rule', ):
+            return partial(getattr(self.acl, name), self)
+        raise AttributeError
 
 class Privilege(ObjectBase):
     """Holds a privilege value"""
@@ -231,13 +237,16 @@ class Acl(object):
         if '.' in instance.get_name():
             parent = instance.get_name().rsplit('.', 1).pop(0)
             parent = self.add_role(parent)  # Recursive
-        return instance
+        return self.get_role(instance)
 
     def get_role(self, name_or_instance):
         """Returns the identified role instance"""
         if isinstance(name_or_instance, self._backend.role_class):
-            return name_or_instance
-        return self._backend.get_role(name_or_instance)
+            instance = name_or_instance
+        else:
+            instance = self._backend.get_role(name_or_instance)
+        instance.acl = self
+        return instance
 
     def add_privilege(self, name_or_instance):
         """Adds a privilege to the ACL"""

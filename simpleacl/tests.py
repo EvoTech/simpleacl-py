@@ -90,6 +90,7 @@ class TestSimpleAcl(unittest.TestCase):
         self.acl.add_privilege('privilege2')
         self.acl.allow('role1', 'privilege2')
         self.assertTrue(self.acl.is_allowed('role1', 'privilege2'))
+        self.assertTrue(self.acl.get_role('role1').is_allowed('privilege2'))
         self.assertTrue(self.acl.is_allowed(simpleacl.Role('role1'), simpleacl.Privilege('privilege2')))
 
     def test_role_is_not_allowed(self):
