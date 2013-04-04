@@ -126,7 +126,7 @@ class TestSimpleAcl(unittest.TestCase):
         self.acl.add_privilege('r1')
         self.acl.add_privilege('r2')
         self.acl.add_privilege('r3')
-        self.acl.allow('role1', 'all')
+        self.acl.allow('role1', 'any')
         self.assertTrue(self.acl.is_allowed('role1', 'r1'))
         self.assertTrue(self.acl.is_allowed('role1', 'r2'))
         self.assertTrue(self.acl.is_allowed('role1', 'r3'))
@@ -142,9 +142,9 @@ class TestSimpleAcl(unittest.TestCase):
         test_dict = {
             'roles': ['superuser', ['user_1', ['superuser', ], ], 'user_2', ],
             'privileges': ['browse.blog.post', 'view.blog.post', 'add.blog.post', 'edit.blog.post', 'delete.blog.post', ],
-            'contexts': ['blog.post.1', 'blog.post.2', ],
+            'resources': ['blog.post.1', 'blog.post.2', ],
             'acl': {
-                'all': {'superuser': {'all': True}},
+                'any': {'superuser': {'any': True}},
                 'blog.post.2': {'user_2': {'view.blog.post': True}},
             }
         }

@@ -19,7 +19,7 @@ class MissingPrivilege(Exception):
         return repr(self.value)
 
 
-class MissingContext(Exception):
+class MissingResource(Exception):
 
     def __init__(self, value):
         self.value = value

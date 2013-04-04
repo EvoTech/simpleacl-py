@@ -23,7 +23,7 @@ try:
 except:
     import json
 
-from simpleacl.exceptions import MissingRole, MissingPrivilege, MissingContext
+from simpleacl.exceptions import MissingRole, MissingPrivilege, MissingResource
 
 try:
     str = unicode  # Python 2.* compatible
@@ -31,8 +31,8 @@ except NameError:
     pass
     
 
-ALL_PRIVILEGES = 'all'
-ALL_CONTEXTS = 'all'
+ANY_PRIVILEGE = 'any'
+ANY_RESOURCE = 'any'
 
 
 class ObjectBase(object):
@@ -88,7 +88,7 @@ class Privilege(ObjectBase):
     pass
 
 
-class Context(ObjectBase):
+class Resource(ObjectBase):
     """Holds a role value"""
 
     def __init__(self, name):
@@ -107,7 +107,7 @@ class Context(ObjectBase):
         return self._parents
 
     def get_object(self):
-        """Returns downloadable context object.
+        """Returns loadable resource object.
 
         For example, load model by path 'blog.post.15'.
         """
@@ -119,14 +119,14 @@ class SimpleBackend(object):
 
     role_class = Role
     privilege_class = Privilege
-    context_class = Context
+    resource_class = Resource
 
     def __init__(self):
         """Constructor."""
         self._roles = {}
         self._privileges = {}
         self._acl = {}
-        self._contexts = {}
+        self._resources = {}
 
     def add_role(self, instance):
         """Adds role"""
@@ -154,49 +154,49 @@ class SimpleBackend(object):
                 'Privilege must be added before requested.'
             )
 
-    def add_context(self, instance):
+    def add_resource(self, instance):
         """Adds privilege"""
-        self._contexts[instance.get_name()] = instance
+        self._resources[instance.get_name()] = instance
 
-    def get_context(self, name):
+    def get_resource(self, name):
         """Returns a privilege instance"""
         try:
-            return self._contexts[name]
+            return self._resources[name]
         except KeyError:
-            raise MissingContext(
-                'Context must be added before requested.'
+            raise MissingResource(
+                'Resource must be added before requested.'
             )
 
-    def add_rule(self, role, privilege=ALL_PRIVILEGES,
-                 context=ALL_CONTEXTS, allow=True):
+    def add_rule(self, role, privilege=ANY_PRIVILEGE,
+                 resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
-        self._acl.setdefault(context, {}).setdefault(role, {})[privilege] = allow
+        self._acl.setdefault(resource, {}).setdefault(role, {})[privilege] = allow
         return self
 
-    def remove_rule(self, role, privilege=ALL_PRIVILEGES,
-                    context=None, allow=True):
+    def remove_rule(self, role, privilege=ANY_PRIVILEGE,
+                    resource=None, allow=True):
         """Removes rule from ACL"""
         try:
-            if self._acl[context][role][privilege] == allow:
-                del self._acl[context][role][privilege]
+            if self._acl[resource][role][privilege] == allow:
+                del self._acl[resource][role][privilege]
         except KeyError:
             pass
         return self
 
-    def role_has_privilege(self, role, privilege, context=None, allow=True):
+    def role_has_privilege(self, role, privilege, resource=None, allow=True):
         """Removes rule from ACL"""
         try:
-            return self._acl[context][role][privilege] == allow
+            return self._acl[resource][role][privilege] == allow
         except KeyError:
             return False
 
-    def is_allowed(self, role, privilege, context=None, undef=None):
+    def is_allowed(self, role, privilege, resource=None, undef=None):
         """Returns True if role is allowed
 
-        for given privilege in given given context
+        for given privilege in given given resource
         """
         try:
-            return self._acl[context][role][privilege]
+            return self._acl[resource][role][privilege]
         except KeyError:
             return undef
 
@@ -207,8 +207,8 @@ class Acl(object):
     def __init__(self, backend_class=SimpleBackend):
         """Constructor."""
         self._backend = backend_class()
-        self.add_privilege(ALL_PRIVILEGES)
-        self.add_context(ALL_CONTEXTS)
+        self.add_privilege(ANY_PRIVILEGE)
+        self.add_resource(ANY_RESOURCE)
 
     def add_role(self, name_or_instance, parents=()):
         """Adds a role to the ACL"""
@@ -278,15 +278,15 @@ class Acl(object):
             return name_or_instance
         return self._backend.get_privilege(name_or_instance)
 
-    def add_context(self, name_or_instance, parents=()):
+    def add_resource(self, name_or_instance, parents=()):
         """Adds a privilege to the ACL"""
         if isinstance(name_or_instance, bytes):
             name_or_instance = str(name_or_instance)
         if isinstance(name_or_instance, str):
             try:
-                instance = self.get_context(name_or_instance)
-            except MissingContext:
-                instance = self._backend.context_class(name_or_instance)
+                instance = self.get_resource(name_or_instance)
+            except MissingResource:
+                instance = self._backend.resource_class(name_or_instance)
         elif isinstance(name_or_instance, self._backend.privilege_class):
             instance = name_or_instance
         else:
@@ -294,94 +294,94 @@ class Acl(object):
                 'Unable to add a privilege of type: {0}'\
                     .format(type(name_or_instance).__name__)
             )
-        self._backend.add_context(instance)
+        self._backend.add_resource(instance)
 
         # Parents support for roles
         for parent in parents:
-            parent = self.add_context(parent)
+            parent = self.add_resource(parent)
             instance.add_parent(parent)
         return instance
 
-    def get_context(self, name_or_instance):
+    def get_resource(self, name_or_instance):
         """Returns the identified privilege instance"""
-        if isinstance(name_or_instance, self._backend.context_class):
+        if isinstance(name_or_instance, self._backend.resource_class):
             return name_or_instance
-        return self._backend.get_context(name_or_instance)
+        return self._backend.get_resource(name_or_instance)
 
-    def add_rule(self, role, privileges=ALL_PRIVILEGES,
-                 context=ALL_CONTEXTS, allow=True):
+    def add_rule(self, role, privileges=ANY_PRIVILEGE,
+                 resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
         if not hasattr(privileges, '__iter__'):
             privileges = (privileges, )
         for priv in privileges:
             self._backend.add_rule(
-                self.get_role(role), self.get_privilege(priv), self.get_context(context), allow
+                self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow
             )
         return self
 
-    def remove_rule(self, role, privileges=ALL_PRIVILEGES,
-                    context=ALL_CONTEXTS, allow=True):
+    def remove_rule(self, role, privileges=ANY_PRIVILEGE,
+                    resource=ANY_RESOURCE, allow=True):
         """Removes rule from ACL"""
         if not hasattr(privileges, '__iter__'):
             privileges = (privileges, )
         for priv in privileges:
             self._backend.remove_rule(
-                self.get_role(role), self.get_privilege(priv), self.get_context(context), allow
+                self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow
             )
         return self
 
-    def allow(self, role, privileges=ALL_PRIVILEGES, context=ALL_CONTEXTS):
+    def allow(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE):
         """Adds an "allow" rule to the ACL"""
-        return self.add_rule(role, privileges, context, True)
+        return self.add_rule(role, privileges, resource, True)
 
-    def remove_allow(self, role, privileges=ALL_PRIVILEGES, context=ALL_CONTEXTS):
+    def remove_allow(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE):
         """Removes an "allow" rule from the ACL"""
-        return self.remove_rule(role, privileges, context, True)
+        return self.remove_rule(role, privileges, resource, True)
 
-    def deny(self, role, privileges=ALL_PRIVILEGES, context=ALL_CONTEXTS):
+    def deny(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE):
         """Adds a "deny" rule to the ACL"""
-        return self.add_rule(role, privileges, context, False)
+        return self.add_rule(role, privileges, resource, False)
 
-    def remove_deny(self, role, privileges=ALL_PRIVILEGES, context=ALL_CONTEXTS):
+    def remove_deny(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE):
         """Removes a "deny" rule from the ACL"""
-        return self.remove_rule(role, privileges, context, False)
+        return self.remove_rule(role, privileges, resource, False)
 
-    def role_has_privilege(self, role, privilege, context=ALL_CONTEXTS, allow=True):
+    def role_has_privilege(self, role, privilege, resource=ANY_RESOURCE, allow=True):
         """Returns True if role has privilege"""
         try:
             return self._backend.role_has_privilege(
                 self.get_role(role), self.get_privilege(privilege),
-                self.get_context(context), allow
+                self.get_resource(resource), allow
             )
         except MissingPrivilege:
             return False
 
-    def is_allowed(self, role, privilege, context=ALL_CONTEXTS, undef=False):
+    def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False):
         """Returns True if role is allowed
 
-        for given privilege in given given context
+        for given privilege in given given resource
         """
-        if context is None:
-            context = ALL_CONTEXTS
+        if resource is None:
+            resource = ANY_RESOURCE
 
         role = self.get_role(role)
         privilege = self.get_privilege(privilege)
-        context = self.get_context(context)
+        resource = self.get_resource(resource)
 
-        allow = self._backend.is_allowed(role, privilege, context, None)
+        allow = self._backend.is_allowed(role, privilege, resource, None)
         if allow is not None:
             return allow
 
         # Parents support for roles
         for parent in role.get_parents():
-            allow = self.is_allowed(parent, privilege, context, None)
+            allow = self.is_allowed(parent, privilege, resource, None)
             if allow is not None:
                 return allow
 
         # Hierarchical support for roles
         if '.' in role.get_name():
             parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(parent, privilege, context, None)
+            allow = self.is_allowed(parent, privilege, resource, None)
             if allow is not None:
                 return allow
 
@@ -390,35 +390,35 @@ class Acl(object):
             parent = self.get_privilege(
                 privilege.get_name().rsplit('.', 1).pop(0)
             )
-            allow = self.is_allowed(role, parent, context, None)
+            allow = self.is_allowed(role, parent, resource, None)
             if allow is not None:
                 return allow
 
-        # Parents support for context
-        for parent in context.get_parents():
+        # Parents support for resource
+        for parent in resource.get_parents():
             allow = self.is_allowed(role, privilege, parent, None)
             if allow is not None:
                 return allow
 
-        # Checks for global context or privilege
-        if privilege.get_name() !=  ALL_PRIVILEGES:
-            allow = self.is_allowed(role, ALL_PRIVILEGES, context, None)
+        # Checks for global resource or privilege
+        if privilege.get_name() !=  ANY_PRIVILEGE:
+            allow = self.is_allowed(role, ANY_PRIVILEGE, resource, None)
             if allow is not None:
                 return allow
 
-        if context.get_name() != ALL_CONTEXTS:
-            allow = self.is_allowed(role, privilege, ALL_CONTEXTS, None)
+        if resource.get_name() != ANY_RESOURCE:
+            allow = self.is_allowed(role, privilege, ANY_RESOURCE, None)
             if allow is not None:
                 return allow
 
-        if privilege.get_name() != ALL_PRIVILEGES and context.get_name() != ALL_CONTEXTS:
-            allow = self._backend.is_allowed(role, ALL_PRIVILEGES, ALL_CONTEXTS, None)
+        if privilege.get_name() != ANY_PRIVILEGE and resource.get_name() != ANY_RESOURCE:
+            allow = self._backend.is_allowed(role, ANY_PRIVILEGE, ANY_RESOURCE, None)
             if allow is not None:
                 return allow
 
         return undef
 
-    def bulk_load(self, json_or_dict, context=ALL_CONTEXTS):
+    def bulk_load(self, json_or_dict, resource=ANY_RESOURCE):
         """You can store your roles, privileges and allow list (many to many)
         in a json encoded string and pass it into this method to build
         the object without having to call add_role or add_privilege for each
@@ -442,18 +442,18 @@ class Acl(object):
         for value in clean.get('privileges', ()):
             self.add_privilege(value)
 
-        for value in clean.get('contexts', ()):
+        for value in clean.get('resources', ()):
             if hasattr(value, '__iter__'):
-                self.add_context(*value)
+                self.add_resource(*value)
             elif isinstance(value, dict):
-                self.add_context(**value)
+                self.add_resource(**value)
             else:
-                self.add_context(value)
+                self.add_resource(value)
 
-        for context, context_rules in clean.get('acl', {}).items():
-            for role, role_rules in context_rules.items():
+        for resource, resource_rules in clean.get('acl', {}).items():
+            for role, role_rules in resource_rules.items():
                 for privilege, allow in role_rules.items():
-                    self.add_rule(role, privilege, context, allow)
+                    self.add_rule(role, privilege, resource, allow)
         return self
 
     @classmethod

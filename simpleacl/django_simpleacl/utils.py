@@ -1,6 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 from threading import local
-from .. import Acl, ALL_CONTEXTS
+from .. import Acl, ANY_RESOURCE
 
 
 class DummyCtx(object):
@@ -36,10 +36,10 @@ def get_privilege(name):
     return '.'.join([app, mod, action])
 
 
-def get_context(obj):
+def get_resource(obj):
     """Post(pk=15, ) -> blog.post.15"""
     if obj is None:
-        return ALL_CONTEXTS
+        return ANY_RESOURCE
     return '{app}.{mod}.{pk}'.format(
         app=obj._meta.app_label,
         mod=obj._meta.module_name,

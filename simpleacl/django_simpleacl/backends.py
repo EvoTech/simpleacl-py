@@ -1,7 +1,7 @@
 # -*- mode: python; coding: utf-8; -*-
 from __future__ import absolute_import, unicode_literals
-from ..exceptions import MissingRole, MissingPrivilege, MissingContext
-from .utils import get_acl, get_role, get_privilege, get_context
+from ..exceptions import MissingRole, MissingPrivilege, MissingResource
+from .utils import get_acl, get_role, get_privilege, get_resource
 
 
 class PermissionBackend(object):
@@ -21,9 +21,9 @@ class PermissionBackend(object):
         acl = get_acl()
         role = acl.add_role(get_role(user))
         privilege = acl.add_privilege(get_privilege(perm))
-        context = acl.add_context(get_context(obj))
+        resource = acl.add_resource(get_resource(obj))
         try:
-            return acl.is_allowed(role, privilege, context)
-        except (MissingRole, MissingPrivilege, MissingContext):
+            return acl.is_allowed(role, privilege, resource)
+        except (MissingRole, MissingPrivilege, MissingResource):
             raise
             return False
