@@ -138,11 +138,25 @@ class TestSimpleAcl(unittest.TestCase):
         self.acl.allow('role1', 'r1')
 
     def test_object_creation_from_json(self):
-        test_dict = {'roles': ['role1', 'role2'], 'privileges': ['r1', 'r2',
-            'r3']}
+        test_dict = {
+            'roles': ['superuser', ['user_1', ['superuser', ], ], 'user_2', ],
+            'privileges': ['browse.blog.post', 'view.blog.post', 'add.blog.post', 'edit.blog.post', 'delete.blog.post', ],
+            'contexts': ['blog.post.1', 'blog.post.2', ],
+            'acl': {
+                'all': {'superuser': {'all': True}},
+                'blog.post.2': {'user_2': {'view': True}},
+            }
+        }
         test_json = json.dumps(test_dict)
         acl = simpleacl.Acl.create_instance(test_json)
         self.assertTrue(isinstance(acl, simpleacl.Acl))
+        self.assertTrue(acl.is_allowed('user_2', 'view.blog.post', 'blog.post.2'))
+        self.assertFalse(acl.is_allowed('user_2', 'edit.blog.post', 'blog.post.2'))
+        self.assertFalse(acl.is_allowed('user_2', 'view.blog.post', 'blog.post.1'))
+
+        self.assertTrue(acl.is_allowed('user_1', 'view.blog.post', 'blog.post.2'))
+        self.assertTrue(acl.is_allowed('user_1', 'edit.blog.post', 'blog.post.2'))
+        self.assertTrue(acl.is_allowed('user_1', 'view.blog.post', 'blog.post.1'))
 
 if __name__ == '__main__':
     unittest.main()

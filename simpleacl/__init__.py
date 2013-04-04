@@ -439,13 +439,12 @@ class Acl(object):
             elif isinstance(value, dict):
                 self.add_context(**value)
             else:
-                self.add_role(value)
+                self.add_context(value)
 
-        for row in clean.get('acl', ()):
-            self.add_rule(
-                row['role'], row['privilege'],
-                row.get(context, context), row['allow']
-            )
+        for context, context_rules in clean.get('acl', {}).items():
+            for role, role_rules in context_rules.items():
+                for privilege, allow in role_rules.items():
+                    self.add_rule(role, privilege, context, allow)
         return self
 
     @classmethod
