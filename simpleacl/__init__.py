@@ -29,7 +29,6 @@ try:
     str = unicode  # Python 2.* compatible
 except NameError:
     pass
-    
 
 ANY_PRIVILEGE = 'any'
 ANY_RESOURCE = 'any'
@@ -82,6 +81,7 @@ class Role(ObjectBase):
                     'deny', 'add_rule', 'remove_rule', ):
             return partial(getattr(self.acl, name), self)
         raise AttributeError
+
 
 class Privilege(ObjectBase):
     """Holds a privilege value"""
@@ -401,7 +401,7 @@ class Acl(object):
                 return allow
 
         # Checks for global resource or privilege
-        if privilege.get_name() !=  ANY_PRIVILEGE:
+        if privilege.get_name() != ANY_PRIVILEGE:
             allow = self.is_allowed(role, ANY_PRIVILEGE, resource, None)
             if allow is not None:
                 return allow
