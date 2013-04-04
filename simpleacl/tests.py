@@ -144,7 +144,7 @@ class TestSimpleAcl(unittest.TestCase):
             'contexts': ['blog.post.1', 'blog.post.2', ],
             'acl': {
                 'all': {'superuser': {'all': True}},
-                'blog.post.2': {'user_2': {'view': True}},
+                'blog.post.2': {'user_2': {'view.blog.post': True}},
             }
         }
         test_json = json.dumps(test_dict)
