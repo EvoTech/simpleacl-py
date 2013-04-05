@@ -1,4 +1,7 @@
 from __future__ import absolute_import, unicode_literals
+from threading import local
+from . import Acl, ANY_RESOURCE
+
 """
 Example of usage.
 
@@ -10,11 +13,10 @@ class User(Model):
 
 @register
 def simpleacl_has_perm(user, perm, obj=None):
-    model = type(obj)
     acl = get_acl()
-    role = acl.add_role('user_{0}'.format(user.pk))
+    role = acl.add_role(get_role_name(user))
     privilege = acl.add_privilege(perm)
-    resource = acl.add_resource(".".join((model.__module__, model.__name__, str(obj.pk))).lower())
+    resource = acl.add_resource(get_resource_name(obj))
     return acl.is_allowed(role, privilege, resource) or False
 
 
@@ -27,6 +29,7 @@ def obj_has_perm(user, perm, obj=None):
             pass
     return False
 """
+
 
 class Registry(object):
     """Registry checkers"""
@@ -41,8 +44,42 @@ class Registry(object):
 register = Registry()
 
 
+class DummyCtx(object):
+    pass
+
+_ctx = local()
+_dummy = DummyCtx()
+
+
 def user_has_perm(user, perm, obj):
     for checker in register._registry:
         if checker(user, perm, obj):
             return True
     return False
+
+
+def get_acl(thread_safe=True):
+    ctx = thread_safe and _ctx or _dummy
+    try:
+        from simpleacl_settings import INITIAL_DATA
+    except ImportError:
+        INITIAL_DATA = {}
+
+    try:
+        return ctx.acl
+    except AttributeError:
+        ctx.acl = Acl.create_instance(INITIAL_DATA)
+    return ctx.acl
+
+
+def get_role_name(user):
+    """User(pk=15, ) -> user_15"""
+    return 'user_{0}'.format(user.pk)
+
+
+def get_resource_name(obj):
+    """blog.Post(pk=15, ) -> blog.post.15"""
+    if obj is None:
+        return ANY_RESOURCE
+    model = type(obj)
+    return ".".join((model.__module__, model.__name__, str(obj.pk))).lower()

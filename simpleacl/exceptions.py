@@ -1,7 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 
 
-class MissingRole(Exception):
+class AclEcxeption(Exception):
 
     def __init__(self, value):
         self.value = value
@@ -10,19 +10,17 @@ class MissingRole(Exception):
         return repr(self.value)
 
 
-class MissingPrivilege(Exception):
-
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
+class MissingRole(AclEcxeption):
+    pass
 
 
-class MissingResource(Exception):
+class MissingPrivilege(AclEcxeption):
+    pass
 
-    def __init__(self, value):
-        self.value = value
 
-    def __str__(self):
-        return repr(self.value)
+class MissingResource(AclEcxeption):
+    pass
+
+
+class PermissionDenied(AclEcxeption):
+    pass

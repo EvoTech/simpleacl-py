@@ -1,7 +1,8 @@
 # -*- mode: python; coding: utf-8; -*-
 from __future__ import absolute_import, unicode_literals
 from ..exceptions import MissingRole, MissingPrivilege, MissingResource
-from .utils import get_acl, get_role, get_privilege, get_resource
+from ..paste import get_acl
+from .utils import get_role_name, get_privilege_name, get_resource_name
 
 
 class PermissionBackend(object):
@@ -19,9 +20,9 @@ class PermissionBackend(object):
         Returns True or False
         """
         acl = get_acl()
-        role = acl.add_role(get_role(user))
-        privilege = acl.add_privilege(get_privilege(perm))
-        resource = acl.add_resource(get_resource(obj))
+        role = acl.add_role(get_role_name(user))
+        privilege = acl.add_privilege(get_privilege_name(perm))
+        resource = acl.add_resource(get_resource_name(obj))
         try:
             return acl.is_allowed(role, privilege, resource)
         except (MissingRole, MissingPrivilege, MissingResource):
