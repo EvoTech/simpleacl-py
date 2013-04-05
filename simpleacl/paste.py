@@ -14,7 +14,7 @@ def simpleacl_has_perm(user, perm, obj=None):
     acl = get_acl()
     role = acl.add_role('user_{0}'.format(user.pk))
     privilege = acl.add_privilege(perm)
-    resource = acl.add_resource(".".join((model.__module__, model.__name__, str(obj.pk))))
+    resource = acl.add_resource(".".join((model.__module__, model.__name__, str(obj.pk))).lower())
     return acl.is_allowed(role, privilege, resource) or False
 
 
