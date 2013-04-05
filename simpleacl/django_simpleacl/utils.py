@@ -1,4 +1,5 @@
 from __future__ import absolute_import, unicode_literals
+import inspect
 from .. import ANY_RESOURCE
 
 
@@ -18,8 +19,6 @@ def get_resource_name(obj):
     """Post(pk=15, ) -> blog.post.15"""
     if obj is None:
         return ANY_RESOURCE
-    return '{app}.{mod}.{pk}'.format(
-        app=obj._meta.app_label,
-        mod=obj._meta.module_name,
-        pk=obj.pk
-    )
+    if not inspect.isclass(obj):
+        return '.'.join(obj._meta.app_label, obj._meta.module_name, str(obj.pk))
+    return '.'.join(obj._meta.app_label, obj._meta.module_name)

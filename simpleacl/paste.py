@@ -1,4 +1,5 @@
 from __future__ import absolute_import, unicode_literals
+import inspect
 from threading import local
 from . import Acl, ANY_RESOURCE
 
@@ -24,7 +25,7 @@ def simpleacl_has_perm(user, perm, obj=None):
 def obj_has_perm(user, perm, obj=None):
     if hasattr(obj, 'is_allowed'):
         try:
-            return obj.is_allowed(user_obj, perm=perm)
+            return obj.is_allowed(user, perm=perm)
         except Exception:
             pass
     return False
@@ -81,5 +82,7 @@ def get_resource_name(obj):
     """blog.Post(pk=15, ) -> blog.post.15"""
     if obj is None:
         return ANY_RESOURCE
-    model = type(obj)
-    return ".".join((model.__module__, model.__name__, str(obj.pk))).lower()
+    if not inspect.isclass(obj):
+        model = type(obj)
+        return ".".join((model.__module__, model.__name__, str(obj.pk))).lower()
+    return ".".join((obj.__module__, obj.__name__)).lower()
