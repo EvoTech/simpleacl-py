@@ -138,7 +138,7 @@ class SimpleBackend(object):
             return self._roles[name]
         except KeyError:
             raise MissingRole(
-                'Role must be added before requested.'
+                'Role "{0}" must be added before requested.'.format(name)
             )
 
     def add_privilege(self, instance):
@@ -151,7 +151,7 @@ class SimpleBackend(object):
             return self._privileges[name]
         except KeyError:
             raise MissingPrivilege(
-                'Privilege must be added before requested.'
+                'Privilege "{0}" must be added before requested.'.format(name)
             )
 
     def add_resource(self, instance):
@@ -164,7 +164,7 @@ class SimpleBackend(object):
             return self._resources[name]
         except KeyError:
             raise MissingResource(
-                'Resource must be added before requested.'
+                'Resource "{0}" must be added before requested.'.format(name)
             )
 
     def add_rule(self, role, privilege=ANY_PRIVILEGE,
@@ -223,17 +223,18 @@ class Acl(object):
             instance = name_or_instance
         else:
             raise Exception(
-                'Unable to add a role of type: {0}'\
-                    .format(type(name_or_instance).__name__)
+                'Unable to add a role of type: {0}'.format(
+                    type(name_or_instance).__name__
+                )
             )
         self._backend.add_role(instance)
 
-        # Parents support for roles
+        # Parents support
         for parent in parents:
             parent = self.add_role(parent)
             instance.add_parent(parent)
 
-        # Hierarchical support for roles
+        # Hierarchical support
         if '.' in instance.get_name():
             parent = instance.get_name().rsplit('.', 1).pop(0)
             parent = self.add_role(parent)  # Recursive
@@ -261,16 +262,17 @@ class Acl(object):
             instance = name_or_instance
         else:
             raise Exception(
-                'Unable to add a privilege of type: {0}'\
-                    .format(type(name_or_instance).__name__)
+                'Unable to add a privilege of type: {0}'.format(
+                    type(name_or_instance).__name__
+                )
             )
         self._backend.add_privilege(instance)
 
-        # Hierarchical support for instances
+        # Hierarchical support
         if '.' in instance.get_name():
             parent = instance.get_name().rsplit('.', 1).pop(0)
             parent = self.add_privilege(parent)  # Recursive
-        return instance
+        return self.get_privilege(instance)
 
     def get_privilege(self, name_or_instance):
         """Returns the identified privilege instance"""
@@ -291,16 +293,22 @@ class Acl(object):
             instance = name_or_instance
         else:
             raise Exception(
-                'Unable to add a privilege of type: {0}'\
-                    .format(type(name_or_instance).__name__)
+                'Unable to add a privilege of type: {0}'.format(
+                    type(name_or_instance).__name__
+                )
             )
         self._backend.add_resource(instance)
 
-        # Parents support for roles
+        # Parents support
         for parent in parents:
             parent = self.add_resource(parent)
             instance.add_parent(parent)
-        return instance
+
+        # Hierarchical support
+        if '.' in instance.get_name():
+            parent = instance.get_name().rsplit('.', 1).pop(0)
+            parent = self.add_resource(parent)  # Recursive
+        return self.get_resource(instance)
 
     def get_resource(self, name_or_instance):
         """Returns the identified privilege instance"""
@@ -387,15 +395,20 @@ class Acl(object):
 
         # Hierarchical support for privileges
         if '.' in privilege.get_name():
-            parent = self.get_privilege(
-                privilege.get_name().rsplit('.', 1).pop(0)
-            )
+            parent = self.get_privilege(privilege.get_name().rsplit('.', 1).pop(0))
             allow = self.is_allowed(role, parent, resource, None)
             if allow is not None:
                 return allow
 
         # Parents support for resource
         for parent in resource.get_parents():
+            allow = self.is_allowed(role, privilege, parent, None)
+            if allow is not None:
+                return allow
+
+        # Hierarchical support for resource
+        if '.' in resource.get_name():
+            parent = self.get_resource(resource.get_name().rsplit('.', 1).pop(0))
             allow = self.is_allowed(role, privilege, parent, None)
             if allow is not None:
                 return allow
