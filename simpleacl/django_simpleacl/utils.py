@@ -20,5 +20,5 @@ def get_resource_name(obj):
     if obj is None:
         return ANY_RESOURCE
     if not inspect.isclass(obj):
-        return '.'.join(obj._meta.app_label, obj._meta.module_name, str(obj.pk))
-    return '.'.join(obj._meta.app_label, obj._meta.module_name)
+        return '.'.join((obj._meta.app_label, obj._meta.module_name, str(obj.pk)))
+    return '.'.join((obj._meta.app_label, obj._meta.module_name))
