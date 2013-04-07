@@ -1,7 +1,17 @@
 from __future__ import absolute_import, unicode_literals
+import sys
 import inspect
 from threading import local
+from . import settings
 from . import Acl, ANY_RESOURCE
+
+try:
+    str = unicode  # Python 2.* compatible
+    string_types = (basestring,)
+    integer_types = (int, long)
+except NameError:
+    string_types = (str,)
+    integer_types = (int,)
 
 """
 Example of usage.
@@ -62,14 +72,9 @@ def user_has_perm(user, perm, obj):
 def get_acl(thread_safe=True):
     ctx = thread_safe and _ctx or _dummy
     try:
-        from simpleacl_settings import INITIAL_DATA
-    except ImportError:
-        INITIAL_DATA = {}
-
-    try:
         return ctx.acl
     except AttributeError:
-        ctx.acl = Acl.create_instance(INITIAL_DATA)
+        ctx.acl = Acl.create_instance(settings.INITIAL_DATA)
     return ctx.acl
 
 
@@ -86,3 +91,19 @@ def get_resource_name(obj):
         model = type(obj)
         return ".".join((model.__module__, model.__name__, str(obj.pk))).lower()
     return ".".join((obj.__module__, obj.__name__)).lower()
+
+
+def resolve(str_or_obj):
+    """Returns object from string"""
+    if not isinstance(str_or_obj, string_types):
+        return str_or_obj
+    if '.' not in str_or_obj:
+        str_or_obj += '.'
+    mod_name, obj_name = str_or_obj.rsplit('.', 1)
+    __import__(mod_name)
+    mod = sys.modules[mod_name]
+    return getattr(mod, obj_name) if obj_name else mod
+
+
+if settings.ACL_GETTER != 'simpleacl.paste.get_acl':
+    get_acl = resolve(settings.ACL_GETTER)
