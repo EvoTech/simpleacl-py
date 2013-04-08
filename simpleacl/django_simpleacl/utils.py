@@ -5,14 +5,17 @@ from .. import ANY_RESOURCE
 
 def get_role_name(user):
     """User(pk=15, ) -> user_15"""
-    return 'user_{0}'.format(user.pk)
+    return 'user_{0}'.format(getattr(user, 'pk', 0))
 
 
 def get_privilege_name(name):
     """blog.add_post -> blog.post.add"""
-    app, action = name.rsplit('.', 1)
-    action, mod = action.rsplit('_', 1)
-    return '.'.join([app, mod, action])
+    try:
+        app, action = name.rsplit('.', 1)
+        action, mod = action.rsplit('_', 1)
+        return '.'.join([app, mod, action])
+    except ValueError:
+        return name
 
 
 def get_resource_name(obj):

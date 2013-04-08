@@ -80,7 +80,7 @@ def get_acl(thread_safe=True):
 
 def get_role_name(user):
     """User(pk=15, ) -> user_15"""
-    return 'user_{0}'.format(user.pk)
+    return 'user_{0}'.format(getattr(user, 'pk', 0))
 
 
 def get_resource_name(obj):
