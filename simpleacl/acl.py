@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #######################################################################
 from __future__ import absolute_import, unicode_literals
+import collections
 from functools import partial
 try:
     import simplejson as json
@@ -378,7 +379,7 @@ class Acl(object):
 
         allow = self._backend.is_allowed(role, privilege, resource, None)
         if allow is not None:
-            return allow
+            return isinstance(allow, collections.Callable) and allow(self, role, privilege, resource) or allow
 
         # Parents support for roles
         for parent in role.get_parents():
@@ -425,7 +426,7 @@ class Acl(object):
                 return allow
 
         if privilege.get_name() != ANY_PRIVILEGE and resource.get_name() != ANY_RESOURCE:
-            allow = self._backend.is_allowed(role, ANY_PRIVILEGE, ANY_RESOURCE, None)
+            allow = self.is_allowed(role, ANY_PRIVILEGE, ANY_RESOURCE, None)
             if allow is not None:
                 return allow
 
