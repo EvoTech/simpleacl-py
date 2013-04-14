@@ -62,7 +62,7 @@ _ctx = local()
 _dummy = DummyCtx()
 
 
-def user_has_perm(user, perm, obj):
+def user_has_perm(user, perm, obj=None):
     for checker in register._registry:
         if checker(user, perm, obj):
             return True
