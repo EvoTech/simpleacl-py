@@ -379,7 +379,7 @@ class Acl(object):
 
         allow = self._backend.is_allowed(role, privilege, resource, None)
         if allow is not None:
-            return isinstance(allow, collections.Callable) and allow(self, role, privilege, resource) or allow
+            return allow(self, role, privilege, resource) if isinstance(allow, collections.Callable) else allow
 
         # Parents support for roles
         for parent in role.get_parents():
