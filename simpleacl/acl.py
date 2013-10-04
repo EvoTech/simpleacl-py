@@ -166,14 +166,12 @@ class SimpleBackend(object):
         except KeyError:
             raise MissingResource('Unknown Resource "{0}"'.format(name))
 
-    def add_rule(self, role, privilege=ANY_PRIVILEGE,
-                 resource=ANY_RESOURCE, allow=True):
+    def add_rule(self, role, privilege=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
         self._acl.setdefault(resource, {}).setdefault(role, {})[privilege] = allow
         return self
 
-    def remove_rule(self, role, privilege=ANY_PRIVILEGE,
-                    resource=None, allow=True):
+    def remove_rule(self, role, privilege=ANY_PRIVILEGE, resource=None, allow=True):
         """Removes rule from ACL"""
         try:
             if self._acl[resource][role][privilege] == allow:
