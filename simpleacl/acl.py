@@ -28,8 +28,11 @@ from simpleacl.exceptions import MissingRole, MissingPrivilege, MissingResource
 
 try:
     str = unicode  # Python 2.* compatible
+    string_types = (basestring,)
+    integer_types = (int, long)
 except NameError:
-    pass
+    string_types = (str,)
+    integer_types = (int,)
 
 ANY_PRIVILEGE = 'any'
 ANY_RESOURCE = 'any'
@@ -96,7 +99,8 @@ class Resource(ObjectBase):
         """For example, name == 'blog.post.15'.
 
         You can create a subclass, and override this method
-        to obtain name from model."""
+        to obtain name from model.
+        """
         self.name = name
         self._parents = []  # Order is important, so use the list(), not set
 
@@ -138,9 +142,7 @@ class SimpleBackend(object):
         try:
             return self._roles[name]
         except KeyError:
-            raise MissingRole(
-                'Role "{0}" must be added before requested.'.format(name)
-            )
+            raise MissingRole('Unknown Role "{0}"'.format(name))
 
     def add_privilege(self, instance):
         """Adds privilege"""
@@ -151,9 +153,7 @@ class SimpleBackend(object):
         try:
             return self._privileges[name]
         except KeyError:
-            raise MissingPrivilege(
-                'Privilege "{0}" must be added before requested.'.format(name)
-            )
+            raise MissingPrivilege('Unknown Privilege "{0}"'.format(name))
 
     def add_resource(self, instance):
         """Adds privilege"""
@@ -164,9 +164,7 @@ class SimpleBackend(object):
         try:
             return self._resources[name]
         except KeyError:
-            raise MissingResource(
-                'Resource "{0}" must be added before requested.'.format(name)
-            )
+            raise MissingResource('Unknown Resource "{0}"'.format(name))
 
     def add_rule(self, role, privilege=ANY_PRIVILEGE,
                  resource=ANY_RESOURCE, allow=True):
@@ -192,10 +190,7 @@ class SimpleBackend(object):
             return False
 
     def is_allowed(self, role, privilege, resource=None, undef=None):
-        """Returns True if role is allowed
-
-        for given privilege in given given resource
-        """
+        """Returns True if role is allowed for given arguments"""
         try:
             return self._acl[resource][role][privilege]
         except KeyError:
@@ -213,21 +208,15 @@ class Acl(object):
 
     def add_role(self, name_or_instance, parents=()):
         """Adds a role to the ACL"""
-        if isinstance(name_or_instance, bytes):
-            name_or_instance = str(name_or_instance)
-        if isinstance(name_or_instance, str):
+        if isinstance(name_or_instance, self._backend.role_class):
+            instance = name_or_instance
+        elif isinstance(name_or_instance, string_types):
             try:
                 instance = self.get_role(name_or_instance)
             except MissingRole:
                 instance = self._backend.role_class(name_or_instance)
-        elif isinstance(name_or_instance, self._backend.role_class):
-            instance = name_or_instance
         else:
-            raise Exception(
-                'Unable to add a role of type: {0}'.format(
-                    type(name_or_instance).__name__
-                )
-            )
+            raise Exception('Unknown role type: {0}'.format(type(name_or_instance).__name__))
         self._backend.add_role(instance)
 
         # Parents support
@@ -252,21 +241,15 @@ class Acl(object):
 
     def add_privilege(self, name_or_instance):
         """Adds a privilege to the ACL"""
-        if isinstance(name_or_instance, bytes):
-            name_or_instance = str(name_or_instance)
-        if isinstance(name_or_instance, str):
+        if isinstance(name_or_instance, self._backend.privilege_class):
+            instance = name_or_instance
+        elif isinstance(name_or_instance, string_types):
             try:
                 instance = self.get_privilege(name_or_instance)
             except MissingPrivilege:
                 instance = self._backend.privilege_class(name_or_instance)
-        elif isinstance(name_or_instance, self._backend.privilege_class):
-            instance = name_or_instance
         else:
-            raise Exception(
-                'Unable to add a privilege of type: {0}'.format(
-                    type(name_or_instance).__name__
-                )
-            )
+            raise Exception('Unknown privilege type: {0}'.format(type(name_or_instance).__name__))
         self._backend.add_privilege(instance)
 
         # Hierarchical support
@@ -283,21 +266,15 @@ class Acl(object):
 
     def add_resource(self, name_or_instance, parents=()):
         """Adds a privilege to the ACL"""
-        if isinstance(name_or_instance, bytes):
-            name_or_instance = str(name_or_instance)
-        if isinstance(name_or_instance, str):
+        if isinstance(name_or_instance, self._backend.privilege_class):
+            instance = name_or_instance
+        elif isinstance(name_or_instance, string_types):
             try:
                 instance = self.get_resource(name_or_instance)
             except MissingResource:
                 instance = self._backend.resource_class(name_or_instance)
-        elif isinstance(name_or_instance, self._backend.privilege_class):
-            instance = name_or_instance
         else:
-            raise Exception(
-                'Unable to add a privilege of type: {0}'.format(
-                    type(name_or_instance).__name__
-                )
-            )
+            raise Exception('Unknown privilege type: {0}'.format(type(name_or_instance).__name__))
         self._backend.add_resource(instance)
 
         # Parents support
@@ -317,26 +294,20 @@ class Acl(object):
             return name_or_instance
         return self._backend.get_resource(name_or_instance)
 
-    def add_rule(self, role, privileges=ANY_PRIVILEGE,
-                 resource=ANY_RESOURCE, allow=True):
+    def add_rule(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
         if not hasattr(privileges, '__iter__'):
             privileges = (privileges, )
         for priv in privileges:
-            self._backend.add_rule(
-                self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow
-            )
+            self._backend.add_rule(self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow)
         return self
 
-    def remove_rule(self, role, privileges=ANY_PRIVILEGE,
-                    resource=ANY_RESOURCE, allow=True):
+    def remove_rule(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Removes rule from ACL"""
         if not hasattr(privileges, '__iter__'):
             privileges = (privileges, )
         for priv in privileges:
-            self._backend.remove_rule(
-                self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow
-            )
+            self._backend.remove_rule(self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow)
         return self
 
     def allow(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE):
@@ -436,7 +407,7 @@ class Acl(object):
         """You can store your roles, privileges and allow list (many to many)
         in a json encoded string and pass it into this method to build
         the object without having to call add_role or add_privilege for each
-        one. TODO: make better documentation for this method.
+        one.
         """
         if isinstance(json_or_dict, bytes):
             json_or_dict = str(json_or_dict)
@@ -475,7 +446,7 @@ class Acl(object):
         """You can store your roles, privileges and allow list (many to many)
         in a json encoded string and pass it into this method to build
         the object without having to call add_role or add_privilege for each
-        one. TODO: make better documentation for this method.
+        one.
         """
         obj = cls()
         obj.bulk_load(json_or_dict)
@@ -487,6 +458,6 @@ try:
 except NameError:
     pass
 else:
-    for cls in (ObjectBase, ):
+    for cls in (ObjectBase,):
         cls.__unicode__ = cls.__str__
-        cls.__str__ = cls.__bytes__
+        cls.__str__ = lambda self: self.__unicode__().encode('utf-8')

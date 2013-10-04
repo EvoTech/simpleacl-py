@@ -10,6 +10,7 @@ def get_role_name(user):
 
 def get_privilege_name(name):
     """blog.add_post -> blog.post.add"""
+    # Maybe better add.blog.post ?
     try:
         app, action = name.rsplit('.', 1)
         action, mod = action.rsplit('_', 1)
