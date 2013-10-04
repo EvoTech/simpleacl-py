@@ -1,6 +1,23 @@
 from __future__ import absolute_import, unicode_literals
 import inspect
 from .. import ANY_RESOURCE
+from ..paste import get_acl
+
+
+def add_rule(user, perm, obj=None, allow=True):
+    acl = get_acl()
+    role = acl.add_role(get_role_name(user))
+    privilege = acl.add_privilege(get_privilege_name(perm))
+    resource = acl.add_resource(get_resource_name(obj))
+    return acl.add_rule(role, privilege, resource, allow)
+
+
+def allow(user, perm, obj=None):
+    return add_rule(user, perm, obj=None, allow=True)
+
+
+def deny(user, perm, obj=None):
+    return add_rule(user, perm, obj=None, allow=False)
 
 
 def get_role_name(user):
