@@ -21,10 +21,7 @@ class PermissionBackend(object):
         return None
 
     def has_perm(self, user, perm, obj=None):
-        """This method checks if the user_obj has perm on obj.
-
-        Returns True or False
-        """
+        """This method checks if the user_obj has perm on obj. Returns True or False"""
         acl = get_acl()
 
         try:
@@ -36,12 +33,9 @@ class PermissionBackend(object):
 
         privilege = acl.add_privilege(get_privilege_name(perm))
 
-        try:
-            resource = acl.get_resource(get_resource_name(obj))
-        except MissingResource:
-            resource = acl.add_resource(get_resource_name(obj))
-            if obj is not None and hasattr(obj, '__simpleacl__'):
-                obj.__simpleacl__(acl, user)
+        resource = acl.add_resource(get_resource_name(obj))
+        if obj is not None and hasattr(obj, '__simpleacl__'):
+            obj.__simpleacl__(acl, user, perm)
 
         try:
             return acl.is_allowed(role, privilege, resource)

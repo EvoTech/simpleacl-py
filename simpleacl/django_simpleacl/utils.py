@@ -13,11 +13,11 @@ def add_rule(user, perm, obj=None, allow=True):
 
 
 def allow(user, perm, obj=None):
-    return add_rule(user, perm, obj=None, allow=True)
+    return add_rule(user, perm, obj, allow=True)
 
 
 def deny(user, perm, obj=None):
-    return add_rule(user, perm, obj=None, allow=False)
+    return add_rule(user, perm, obj, allow=False)
 
 
 def get_role_name(user):

@@ -60,7 +60,7 @@ class ObjectBase(object):
         return str(self.name)
 
     def __repr__(self):
-        return b'<{0}>'.format(self.__bytes__())
+        return b'<{0}: {1}>'.format(type(self).__name__, self.__bytes__())
 
     def get_name(self):
         return self.name
@@ -166,12 +166,12 @@ class SimpleBackend(object):
         except KeyError:
             raise MissingResource('Missing Resource "{0}"'.format(name))
 
-    def add_rule(self, role, privilege=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
+    def add_rule(self, role, privilege, resource, allow=True):
         """Adds rule to the ACL"""
         self._acl.setdefault(resource, {}).setdefault(role, {})[privilege] = allow
         return self
 
-    def remove_rule(self, role, privilege=ANY_PRIVILEGE, resource=None, allow=True):
+    def remove_rule(self, role, privilege, resource, allow=True):
         """Removes rule from ACL"""
         try:
             if self._acl[resource][role][privilege] == allow:
@@ -180,14 +180,14 @@ class SimpleBackend(object):
             pass
         return self
 
-    def role_has_privilege(self, role, privilege, resource=None, allow=True):
+    def role_has_privilege(self, role, privilege, resource, allow=True):
         """Removes rule from ACL"""
         try:
             return self._acl[resource][role][privilege] == allow
         except KeyError:
             return False
 
-    def is_allowed(self, role, privilege, resource=None, undef=None):
+    def is_allowed(self, role, privilege, resource, undef=None):
         """Returns True if role is allowed for given arguments"""
         try:
             return self._acl[resource][role][privilege]
@@ -335,10 +335,8 @@ class Acl(object):
             return False
 
     def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False):
-        """Returns True if role is allowed
-
-        for given privilege in given given resource
-        """
+        """Returns True if role is allowed for given privilege in given given resource"""
+        print '@@@ ', role, privilege, resource, undef
         if resource is None:
             resource = ANY_RESOURCE
 

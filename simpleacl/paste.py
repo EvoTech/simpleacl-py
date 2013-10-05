@@ -35,12 +35,9 @@ def simpleacl_has_perm(user, perm, obj=None):
 
         privilege = acl.add_privilege(get_privilege_name(perm))
 
-        try:
-            resource = acl.get_resource(get_resource_name(obj))
-        except MissingResource:
-            resource = acl.add_resource(get_resource_name(obj))
-            if obj is not None and hasattr(obj, '__simpleacl__'):
-                obj.__simpleacl__(acl, user)
+        resource = acl.add_resource(get_resource_name(obj))
+        if obj is not None and hasattr(obj, '__simpleacl__'):
+            obj.__simpleacl__(acl, user, perm)
 
     return acl.is_allowed(role, privilege, resource) or False
 
