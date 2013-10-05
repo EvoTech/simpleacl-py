@@ -142,7 +142,7 @@ class SimpleBackend(object):
         try:
             return self._roles[name]
         except KeyError:
-            raise MissingRole('Unknown Role "{0}"'.format(name))
+            raise MissingRole('Missing Role "{0}"'.format(name))
 
     def add_privilege(self, instance):
         """Adds privilege"""
@@ -153,7 +153,7 @@ class SimpleBackend(object):
         try:
             return self._privileges[name]
         except KeyError:
-            raise MissingPrivilege('Unknown Privilege "{0}"'.format(name))
+            raise MissingPrivilege('Missing Privilege "{0}"'.format(name))
 
     def add_resource(self, instance):
         """Adds privilege"""
@@ -164,7 +164,7 @@ class SimpleBackend(object):
         try:
             return self._resources[name]
         except KeyError:
-            raise MissingResource('Unknown Resource "{0}"'.format(name))
+            raise MissingResource('Missing Resource "{0}"'.format(name))
 
     def add_rule(self, role, privilege=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
