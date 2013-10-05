@@ -4,6 +4,12 @@ from ..exceptions import MissingRole, MissingPrivilege, MissingResource
 from ..paste import get_acl
 from .utils import get_role_name, get_privilege_name, get_resource_name
 
+try:
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+except ImportError:
+    from django.contrib.auth.models import User
+
 
 class PermissionBackend(object):
     """Per object level permission backend."""
@@ -20,14 +26,22 @@ class PermissionBackend(object):
         Returns True or False
         """
         acl = get_acl()
-        if hasattr(user, '__simpleacl__'):
-            user.__simpleacl__(acl)
-        if obj is not None and hasattr(obj, '__simpleacl__'):
-            obj.__simpleacl__(acl, user)
 
-        role = acl.add_role(get_role_name(user))
+        try:
+            role = acl.get_role(get_role_name(user))
+        except MissingRole:
+            role = acl.add_role(get_role_name(user), user.groups.all().values_list('name', flat=True))
+            if hasattr(user, '__simpleacl__'):
+                user.__simpleacl__(acl)
+
         privilege = acl.add_privilege(get_privilege_name(perm))
-        resource = acl.add_resource(get_resource_name(obj))
+
+        try:
+            resource = acl.get_resource(get_resource_name(obj))
+        except MissingResource:
+            resource = acl.add_resource(get_resource_name(obj))
+            if obj is not None and hasattr(obj, '__simpleacl__'):
+                obj.__simpleacl__(acl, user)
 
         try:
             return acl.is_allowed(role, privilege, resource)

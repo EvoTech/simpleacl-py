@@ -24,14 +24,24 @@ class User(Model):
 
 @register
 def simpleacl_has_perm(user, perm, obj=None):
-    acl = get_acl()
-    if hasattr(user, '__simpleacl__'):
-        user.__simpleacl__(acl)
-    if obj is not None and hasattr(obj, '__simpleacl__'):
-        obj.__simpleacl__(acl, user)
-    role = acl.add_role(get_role_name(user))
-    privilege = acl.add_privilege(perm)
-    resource = acl.add_resource(get_resource_name(obj))
+        acl = get_acl()
+
+        try:
+            role = acl.get_role(get_role_name(user))
+        except MissingRole:
+            role = acl.add_role(get_role_name(user), user.groups.all().values_list('name', flat=True))
+            if hasattr(user, '__simpleacl__'):
+                user.__simpleacl__(acl)
+
+        privilege = acl.add_privilege(get_privilege_name(perm))
+
+        try:
+            resource = acl.get_resource(get_resource_name(obj))
+        except MissingResource:
+            resource = acl.add_resource(get_resource_name(obj))
+            if obj is not None and hasattr(obj, '__simpleacl__'):
+                obj.__simpleacl__(acl, user)
+
     return acl.is_allowed(role, privilege, resource) or False
 
 
