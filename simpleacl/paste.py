@@ -25,6 +25,8 @@ class User(Model):
 @register
 def simpleacl_has_perm(user, perm, obj=None):
     acl = get_acl()
+    if obj is not None and hasattr(obj, '__simpleacl__'):
+        obj.__simpleacl__(acl)
     role = acl.add_role(get_role_name(user))
     privilege = acl.add_privilege(perm)
     resource = acl.add_resource(get_resource_name(obj))
