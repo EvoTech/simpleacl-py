@@ -71,14 +71,30 @@ class Role(ObjectBase):
 
     def __init__(self, name):
         self.name = name
-        self._parents = []  # Order is important, so use the list(), not set
+        self._parents = {}
 
-    def add_parent(self, parent):
-        if parent not in self._parents:
-            self._parents.append(parent)
+    def add_parent(self, parent, resource):
+        parents = self._parents.setdefault(resource, [])
+        if parent not in parents:
+            parents.append(parent)
 
-    def get_parents(self):
-        return self._parents
+    def get_parents(self, resource, ret=0):
+        parents = self._parents.get(resource, [])  # Order is important, so use the list(), not set
+        parents = parents[:]
+        any_resource = self.acl.get_resource(ANY_RESOURCE)
+
+        # Parents support for resources
+        for parent in resource.get_parents():
+            parents += self.get_parents(parent, 1)
+
+        # Hierarchical support for resource
+        if '.' in resource.get_name():
+            parent = self.acl.get_resource(resource.get_name().rsplit('.', 1).pop(0))
+            parents += self.get_parents(parent, 2)
+
+        if ret == 0 and resource != any_resource:
+            parents = parents + self._parents.get(any_resource, [])
+        return parents
 
     def __getattr__(self, name):
         if name in ('is_allowed', 'allow', 'remove_allow', 'remove_rule',
@@ -180,13 +196,6 @@ class SimpleBackend(object):
             pass
         return self
 
-    def role_has_privilege(self, role, privilege, resource, allow=True):
-        """Removes rule from ACL"""
-        try:
-            return self._acl[resource][role][privilege] == allow
-        except KeyError:
-            return False
-
     def is_allowed(self, role, privilege, resource, undef=None):
         """Returns True if role is allowed for given arguments"""
         try:
@@ -218,9 +227,13 @@ class Acl(object):
         self._backend.add_role(instance)
 
         # Parents support
-        for parent in parents:
-            parent = self.add_role(parent)
-            instance.add_parent(parent)
+        if type(parents) != dict:
+            parents = {ANY_RESOURCE: parents}
+        for resource, parent_list in parents.items():
+            for parent in parent_list:
+                resource = self.get_resource(resource)
+                parent = self.add_role(parent)
+                instance.add_parent(parent, resource)
 
         # Hierarchical support
         if '.' in instance.get_name():
@@ -324,17 +337,7 @@ class Acl(object):
         """Removes a "deny" rule from the ACL"""
         return self.remove_rule(role, privileges, resource, False)
 
-    def role_has_privilege(self, role, privilege, resource=ANY_RESOURCE, allow=True):
-        """Returns True if role has privilege"""
-        try:
-            return self._backend.role_has_privilege(
-                self.get_role(role), self.get_privilege(privilege),
-                self.get_resource(resource), allow
-            )
-        except MissingPrivilege:
-            return False
-
-    def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False, ret=0):
+    def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False):
         """Returns True if role is allowed for given privilege in given given resource"""
         if resource is None:
             resource = ANY_RESOURCE
@@ -348,57 +351,45 @@ class Acl(object):
             return allow(self, role, privilege, resource) if isinstance(allow, collections.Callable) else allow
 
         # Parents support for roles
-        for parent in role.get_parents():
-            allow = self.is_allowed(parent, privilege, resource, None, 1)
+        for parent in role.get_parents(resource):
+            allow = self.is_allowed(parent, privilege, resource, None)
             if allow is not None:
                 return allow
-        if ret == 1:
-            return undef
 
         # Hierarchical support for roles
         if '.' in role.get_name():
             parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(parent, privilege, resource, None, 2)
+            allow = self.is_allowed(parent, privilege, resource, None)
             if allow is not None:
                 return allow
-        if ret == 2:
-            return undef
 
         # Hierarchical support for privileges
         if '.' in privilege.get_name():
             parent = self.get_privilege(privilege.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(role, parent, resource, None, 3)
+            allow = self.is_allowed(role, parent, resource, None)
             if allow is not None:
                 return allow
-        if ret == 3:
-            return undef
 
         # Parents support for resources
         for parent in resource.get_parents():
-            allow = self.is_allowed(role, privilege, parent, None, 4)
+            allow = self.is_allowed(role, privilege, parent, None)
             if allow is not None:
                 return allow
-        if ret == 4:
-            return undef
 
         # Hierarchical support for resource
         if '.' in resource.get_name():
             parent = self.get_resource(resource.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(role, privilege, parent, None, 5)
+            allow = self.is_allowed(role, privilege, parent, None)
             if allow is not None:
                 return allow
-        if ret == 5:
-            return undef
 
         if privilege.get_name() != ANY_PRIVILEGE:
-            allow = self.is_allowed(role, ANY_PRIVILEGE, resource, None, 6)
+            allow = self.is_allowed(role, ANY_PRIVILEGE, resource, None)
             if allow is not None:
                 return allow
-        if ret == 6:
-            return undef
 
         if resource.get_name() != ANY_RESOURCE:
-            allow = self.is_allowed(role, privilege, ANY_RESOURCE, None, 7)
+            allow = self.is_allowed(role, privilege, ANY_RESOURCE, None)
             if allow is not None:
                 return allow
 
@@ -417,6 +408,14 @@ class Acl(object):
         else:
             clean = json_or_dict
 
+        for value in clean.get('resources', ()):
+            if hasattr(value, '__iter__'):
+                self.add_resource(*value)
+            elif isinstance(value, dict):
+                self.add_resource(**value)
+            else:
+                self.add_resource(value)
+
         for value in clean.get('roles', ()):
             if hasattr(value, '__iter__'):
                 self.add_role(*value)
@@ -427,14 +426,6 @@ class Acl(object):
 
         for value in clean.get('privileges', ()):
             self.add_privilege(value)
-
-        for value in clean.get('resources', ()):
-            if hasattr(value, '__iter__'):
-                self.add_resource(*value)
-            elif isinstance(value, dict):
-                self.add_resource(**value)
-            else:
-                self.add_resource(value)
 
         for resource, resource_rules in clean.get('acl', {}).items():
             for role, role_rules in resource_rules.items():

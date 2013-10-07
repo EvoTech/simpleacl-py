@@ -71,18 +71,6 @@ class TestSimpleAcl(unittest.TestCase):
             'role999'
         )
 
-    def test_allow_role_to_privilege(self):
-        self.acl.add_role('role1')
-        self.acl.add_privilege('privilege1')
-        self.acl.allow('role1', 'privilege1')
-        self.assertTrue(self.acl.role_has_privilege('role1', 'privilege1'))
-
-    def test_role_does_not_have_privilege(self):
-        self.acl.add_role('role1')
-        self.acl.add_privilege('privilege1')
-        self.acl.allow('role1', 'privilege1')
-        self.assertFalse(self.acl.role_has_privilege('role1', 'privilege999'))
-
     def test_role_is_allowed(self):
         self.acl.add_role('role1')
         self.acl.add_role('role2')
@@ -158,6 +146,69 @@ class TestSimpleAcl(unittest.TestCase):
         self.assertTrue(acl.is_allowed('user_1', 'view.blog.post', 'blog.post.2'))
         self.assertTrue(acl.is_allowed('user_1', 'edit.blog.post', 'blog.post.2'))
         self.assertTrue(acl.is_allowed('user_1', 'view.blog.post', 'blog.post.1'))
+
+    def test_object_creation_from_json2(self):
+        test_dict = {
+            'roles': [
+                'moderator',
+                'author',
+                'authenticated',
+                ['user_1', {'any': ['authenticated'],
+                            'blog': ['moderator']}],
+                ['user_2', {'any': ['authenticated'],
+                            'blog.post.2': ['author']}],
+                ['user_3', {'any': ['authenticated'],
+                            'blog.post.2': ['moderator']}],
+            ],
+            'privileges': [
+                'browse.blog.post',
+                'view.blog.post',
+                'add.blog.post',
+                'edit.blog.post',
+                'delete.blog.post',
+            ],
+            'resources': ['blog.post.1', 'blog.post.2', 'blog.post.3', 'board.message.3'],
+            'acl': {
+                'any': {
+                    'authenticated': {'browse.blog.post': True},
+                },
+                'blog.post': {
+                    'moderator': {'browse': True,
+                                  'view': True,
+                                  'edit': True},
+                    'author': {'browse.blog.post': True,
+                               'view.blog.post': True,
+                               'edit.blog.post': True},
+                }
+            }
+        }
+        test_json = json.dumps(test_dict)
+        acl = simpleacl.Acl.create_instance(test_json)
+        self.assertTrue(isinstance(acl, simpleacl.Acl))
+        self.assertTrue(acl.is_allowed('user_2', 'browse.blog.post', 'blog.post.2'))
+        self.assertTrue(acl.is_allowed('user_2', 'view.blog.post', 'blog.post.2'))
+        self.assertTrue(acl.is_allowed('user_2', 'edit.blog.post', 'blog.post.2'))
+        self.assertFalse(acl.is_allowed('user_2', 'delete.blog.post', 'blog.post.2'))
+        self.assertFalse(acl.is_allowed('user_2', 'edit.blog.post', 'blog.post'))
+        self.assertFalse(acl.is_allowed('user_2', 'edit.blog', 'blog.post'))
+
+        self.assertTrue(acl.is_allowed('user_2', 'browse.blog.post', 'blog.post.1'))
+        self.assertFalse(acl.is_allowed('user_2', 'edit.blog.post', 'blog.post.1'))
+
+        self.assertTrue(acl.is_allowed('user_1', 'view.blog.post', 'blog.post.2'))
+        self.assertTrue(acl.is_allowed('user_1', 'edit.blog.post', 'blog.post.2'))
+        self.assertTrue(acl.is_allowed('user_1', 'edit.blog.post', 'blog.post.1'))
+        self.assertTrue(acl.is_allowed('user_1', 'edit.blog.post', 'blog.post'))
+        self.assertTrue(acl.is_allowed('user_1', 'edit.blog', 'blog.post.2'))
+        self.assertTrue(acl.is_allowed('user_1', 'edit.blog', 'blog.post'))
+        self.assertTrue(acl.is_allowed('user_1', 'view.blog.post', 'blog.post.1'))
+        self.assertFalse(acl.is_allowed('user_1', 'view', 'blog'))
+        self.assertFalse(acl.is_allowed('user_1', 'view', 'board.message.3'))
+
+        self.assertTrue(acl.is_allowed('user_3', 'edit.blog.post', 'blog.post.2'))
+        self.assertFalse(acl.is_allowed('user_3', 'edit.blog.post', 'blog.post.3'))
+        self.assertFalse(acl.is_allowed('user_3', 'edit.blog.post', 'blog.post'))
+        self.assertFalse(acl.is_allowed('user_3', 'edit.blog.post', 'blog'))
 
 if __name__ == '__main__':
     unittest.main()
