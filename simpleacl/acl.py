@@ -369,17 +369,17 @@ class Acl(object):
         if ret == 2:
             return undef
 
-        # Parents support for resources
-        for parent in resource.get_parents():
+        # Hierarchical support for resource
+        if '.' in resource.get_name():
+            parent = self.get_resource(resource.get_name().rsplit('.', 1).pop(0))
             allow = self.is_allowed(role, privilege, parent, None, 3)
             if allow is not None:
                 return allow
         if ret == 3:
             return undef
 
-        # Hierarchical support for resource
-        if '.' in resource.get_name():
-            parent = self.get_resource(resource.get_name().rsplit('.', 1).pop(0))
+        # Parents support for resources
+        for parent in resource.get_parents():
             allow = self.is_allowed(role, privilege, parent, None, 4)
             if allow is not None:
                 return allow
@@ -393,17 +393,17 @@ class Acl(object):
         if ret == 5:
             return undef
 
-        # Parents support for roles
-        for parent in role.get_parents(resource):
+        # Hierarchical support for roles
+        if '.' in role.get_name():
+            parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
             allow = self.is_allowed(parent, privilege, resource, None, 6)
             if allow is not None:
                 return allow
         if ret == 6:
             return undef
 
-        # Hierarchical support for roles
-        if '.' in role.get_name():
-            parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
+        # Parents support for roles
+        for parent in role.get_parents(resource):
             allow = self.is_allowed(parent, privilege, resource, None, 7)
             if allow is not None:
                 return allow
