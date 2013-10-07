@@ -337,7 +337,7 @@ class Acl(object):
         """Removes a "deny" rule from the ACL"""
         return self.remove_rule(role, privileges, resource, False)
 
-    def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False):
+    def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False, ret=0):
         """Returns True if role is allowed for given privilege in given given resource"""
         if resource is None:
             resource = ANY_RESOURCE
@@ -350,48 +350,55 @@ class Acl(object):
         if allow is not None:
             return allow(self, role, privilege, resource) if isinstance(allow, collections.Callable) else allow
 
-        # Parents support for roles
-        for parent in role.get_parents(resource):
-            allow = self.is_allowed(parent, privilege, resource, None)
-            if allow is not None:
-                return allow
+        if ret <= 1:
+            # Parents support for roles
+            for parent in role.get_parents(resource):
+                allow = self.is_allowed(parent, privilege, resource, None, 1)
+                if allow is not None:
+                    return allow
 
-        # Hierarchical support for roles
-        if '.' in role.get_name():
-            parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(parent, privilege, resource, None)
-            if allow is not None:
-                return allow
+        if ret <= 2:
+            # Hierarchical support for roles
+            if '.' in role.get_name():
+                parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
+                allow = self.is_allowed(parent, privilege, resource, None, 2)
+                if allow is not None:
+                    return allow
 
-        # Hierarchical support for privileges
-        if '.' in privilege.get_name():
-            parent = self.get_privilege(privilege.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(role, parent, resource, None)
-            if allow is not None:
-                return allow
+        if ret <= 3:
+            # Hierarchical support for privileges
+            if '.' in privilege.get_name():
+                parent = self.get_privilege(privilege.get_name().rsplit('.', 1).pop(0))
+                allow = self.is_allowed(role, parent, resource, None, 3)
+                if allow is not None:
+                    return allow
 
-        # Parents support for resources
-        for parent in resource.get_parents():
-            allow = self.is_allowed(role, privilege, parent, None)
-            if allow is not None:
-                return allow
+        if ret <= 4:
+            # Parents support for resources
+            for parent in resource.get_parents():
+                allow = self.is_allowed(role, privilege, parent, None, 4)
+                if allow is not None:
+                    return allow
 
-        # Hierarchical support for resource
-        if '.' in resource.get_name():
-            parent = self.get_resource(resource.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(role, privilege, parent, None)
-            if allow is not None:
-                return allow
+        if ret <= 4:
+            # Hierarchical support for resource
+            if '.' in resource.get_name():
+                parent = self.get_resource(resource.get_name().rsplit('.', 1).pop(0))
+                allow = self.is_allowed(role, privilege, parent, None, 5)
+                if allow is not None:
+                    return allow
 
-        if privilege.get_name() != ANY_PRIVILEGE:
-            allow = self.is_allowed(role, ANY_PRIVILEGE, resource, None)
-            if allow is not None:
-                return allow
+        if ret <= 6:
+            if privilege.get_name() != ANY_PRIVILEGE:
+                allow = self.is_allowed(role, ANY_PRIVILEGE, resource, None, 6)
+                if allow is not None:
+                    return allow
 
-        if resource.get_name() != ANY_RESOURCE:
-            allow = self.is_allowed(role, privilege, ANY_RESOURCE, None)
-            if allow is not None:
-                return allow
+        if ret <= 7:
+            if resource.get_name() != ANY_RESOURCE:
+                allow = self.is_allowed(role, privilege, ANY_RESOURCE, None, 7)
+                if allow is not None:
+                    return allow
 
         return undef
 
