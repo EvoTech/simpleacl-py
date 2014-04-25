@@ -1,9 +1,8 @@
 from __future__ import absolute_import, unicode_literals
-import sys
 import inspect
 from threading import local
 from . import settings
-from . import Acl, ANY_RESOURCE
+from . import Acl, ANY_RESOURCE, resolve
 
 try:
     str = unicode  # Python 2.* compatible
@@ -102,18 +101,6 @@ def get_resource_name(obj):
         model = type(obj)
         return ".".join((model.__module__, model.__name__, str(obj.pk))).lower()
     return ".".join((obj.__module__, obj.__name__)).lower()
-
-
-def resolve(str_or_obj):
-    """Returns object from string"""
-    if not isinstance(str_or_obj, string_types):
-        return str_or_obj
-    if '.' not in str_or_obj:
-        str_or_obj += '.'
-    mod_name, obj_name = str_or_obj.rsplit('.', 1)
-    __import__(mod_name)
-    mod = sys.modules[mod_name]
-    return getattr(mod, obj_name) if obj_name else mod
 
 
 if settings.ACL_GETTER != 'simpleacl.paste.get_acl':

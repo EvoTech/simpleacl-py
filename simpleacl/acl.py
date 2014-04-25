@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #######################################################################
 from __future__ import absolute_import, unicode_literals
+import sys
 import collections
 from functools import partial
 try:
@@ -351,6 +352,8 @@ class Acl(object):
 
         allow = self._backend.is_allowed(role, privilege, resource, None)
         if allow is not None:
+            if isinstance(allow, string_types) and '.' in allow:
+                allow = resolve(allow)
             return allow(self, role, privilege, resource) if isinstance(allow, collections.Callable) else allow
 
         # Hierarchical support for privileges
@@ -458,6 +461,19 @@ class Acl(object):
         obj = cls()
         obj.bulk_load(json_or_dict)
         return obj
+
+
+def resolve(str_or_obj):
+    """Returns object from string"""
+    if not isinstance(str_or_obj, string_types):
+        return str_or_obj
+    if '.' not in str_or_obj:
+        str_or_obj += '.'
+    mod_name, obj_name = str_or_obj.rsplit('.', 1)
+    __import__(mod_name)
+    mod = sys.modules[mod_name]
+    return getattr(mod, obj_name) if obj_name else mod
+
 
 # Python 2.* compatible
 try:
