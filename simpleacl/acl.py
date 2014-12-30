@@ -312,7 +312,7 @@ class Acl(object):
 
     def add_rule(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
-        if not hasattr(privileges, '__iter__'):
+        if not is_list(privileges):
             privileges = (privileges, )
         for priv in privileges:
             self._backend.add_rule(self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow)
@@ -320,7 +320,7 @@ class Acl(object):
 
     def remove_rule(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Removes rule from ACL"""
-        if not hasattr(privileges, '__iter__'):
+        if not is_list(privileges):
             privileges = (privileges, )
         for priv in privileges:
             self._backend.remove_rule(self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow)
@@ -427,7 +427,7 @@ class Acl(object):
             clean = json_or_dict
 
         for value in clean.get('resources', ()):
-            if hasattr(value, '__iter__'):
+            if is_list(value):
                 self.add_resource(*value)
             elif isinstance(value, dict):
                 self.add_resource(**value)
@@ -435,7 +435,7 @@ class Acl(object):
                 self.add_resource(value)
 
         for value in clean.get('roles', ()):
-            if hasattr(value, '__iter__'):
+            if is_list(value):
                 self.add_role(*value)
             elif isinstance(value, dict):
                 self.add_role(**value)
@@ -461,6 +461,10 @@ class Acl(object):
         obj = cls()
         obj.bulk_load(json_or_dict)
         return obj
+
+
+def is_list(v):
+    return isinstance(v, (list, tuple))
 
 
 def resolve(str_or_obj):
