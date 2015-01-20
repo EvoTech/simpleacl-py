@@ -79,21 +79,21 @@ class Role(ObjectBase):
         if parent not in parents:
             parents.append(parent)
 
-    def get_parents(self, resource, ret=0):
+    def get_parents(self, resource, acl, ret=0):
         parents = self._parents.get(resource, [])  # Order is important, so use the list(), not set
         parents = parents[:]
-        any_resource = self.acl.get_resource(ANY_RESOURCE)
+        any_resource = acl.get_resource(ANY_RESOURCE)
 
         # Parents support for resources
         for parent in resource.get_parents():
-            parents += self.get_parents(parent, 1)
+            parents += self.get_parents(parent, acl, 1)
         if ret == 1:
             return parents
 
         # Hierarchical support for resource
         if '.' in resource.get_name():
-            parent = self.acl.get_resource(resource.get_name().rsplit('.', 1).pop(0))
-            parents += self.get_parents(parent, 2)
+            parent = acl.get_resource(resource.get_name().rsplit('.', 1).pop(0))
+            parents += self.get_parents(parent, acl, 2)
         if ret == 2:
             return parents
 
@@ -101,10 +101,18 @@ class Role(ObjectBase):
             parents = parents + self._parents.get(any_resource, [])
         return parents
 
+
+class BoundRole(ObjectBase):
+
+    def __init__(self, role, acl):
+        self.name = role.name
+        self.role = role
+        self.acl = acl
+
     def __getattr__(self, name):
         if name in ('is_allowed', 'allow', 'remove_allow', 'remove_rule',
                     'deny', 'add_rule', 'remove_rule', ):
-            return partial(getattr(self.acl, name), self)
+            return partial(getattr(self.acl, name), self.role)
         raise AttributeError
 
 
@@ -244,7 +252,7 @@ class Acl(object):
         if '.' in instance.get_name():
             parent = instance.get_name().rsplit('.', 1).pop(0)
             parent = self.add_role(parent)  # Recursive
-        return self.get_role(instance)
+        return instance
 
     def get_role(self, name_or_instance):
         """Returns the identified role instance"""
@@ -252,8 +260,10 @@ class Acl(object):
             instance = name_or_instance
         else:
             instance = self._backend.get_role(name_or_instance)
-        instance.acl = self
         return instance
+
+    def get_bound_role(self, name_or_instance):
+        return BoundRole(self.get_role(name_or_instance), self)
 
     def add_privilege(self, name_or_instance):
         """Adds a privilege to the ACL"""
@@ -406,7 +416,7 @@ class Acl(object):
             return undef
 
         # Parents support for roles
-        for parent in role.get_parents(resource):
+        for parent in role.get_parents(resource, self):
             allow = self.is_allowed(parent, privilege, resource, None, 7)
             if allow is not None:
                 return allow
