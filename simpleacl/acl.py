@@ -222,6 +222,7 @@ class Acl(object):
 
     def __init__(self, backend_class=SimpleBackend):
         """Constructor."""
+        self.parent = None
         self._backend = backend_class()
         self.add_privilege(ANY_PRIVILEGE)
         self.add_resource(ANY_RESOURCE)
@@ -259,7 +260,12 @@ class Acl(object):
         if isinstance(name_or_instance, self._backend.role_class):
             instance = name_or_instance
         else:
-            instance = self._backend.get_role(name_or_instance)
+            try:
+                instance = self._backend.get_role(name_or_instance)
+            except MissingRole:
+                if self.parent is None:
+                    raise
+                return self.parent.get_role(name_or_instance)
         return instance
 
     def get_bound_role(self, name_or_instance):
@@ -288,7 +294,12 @@ class Acl(object):
         """Returns the identified privilege instance"""
         if isinstance(name_or_instance, self._backend.privilege_class):
             return name_or_instance
-        return self._backend.get_privilege(name_or_instance)
+        try:
+            return self._backend.get_privilege(name_or_instance)
+        except MissingPrivilege:
+            if self.parent is None:
+                raise
+            return self.parent.get_privilege(name_or_instance)
 
     def add_resource(self, name_or_instance, parents=()):
         """Adds a privilege to the ACL"""
@@ -318,7 +329,12 @@ class Acl(object):
         """Returns the identified privilege instance"""
         if isinstance(name_or_instance, self._backend.resource_class):
             return name_or_instance
-        return self._backend.get_resource(name_or_instance)
+        try:
+            return self._backend.get_resource(name_or_instance)
+        except MissingResource:
+            if self.parent is None:
+                raise
+            return self.parent.get_resource(name_or_instance)
 
     def add_rule(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
@@ -420,6 +436,9 @@ class Acl(object):
             allow = self.is_allowed(parent, privilege, resource, None, 7)
             if allow is not None:
                 return allow
+
+        if ret == 0 and self.parent:
+            return self.parent.is_allowed(role, privilege, resource, undef)
 
         return undef
 

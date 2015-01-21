@@ -126,6 +126,25 @@ class TestSimpleAcl(unittest.TestCase):
         self.acl.allow('role1', 'r1')
         self.acl.allow('role1', 'r1')
 
+    def test_parent_acl(self):
+        self.acl.add_role('staff')
+        self.acl.add_role('admin', ('staff',))
+        self.acl.add_privilege('p1')
+        self.acl.add_privilege('p2')
+        self.acl.add_resource('r1')
+        self.acl.add_resource('r2')
+        self.acl.allow('staff', 'p1', 'r1')
+        subacl = simpleacl.Acl()
+        subacl.parent = self.acl
+        subacl.add_role('user1', ['admin'])
+        subacl.add_role('user2')
+        subacl.allow('user2', 'p2', 'r2')
+        self.assertTrue(subacl.is_allowed('user1', 'p1', 'r1'))
+        self.assertFalse(subacl.is_allowed('user2', 'p1', 'r1'))
+        self.assertFalse(subacl.is_allowed('user1', 'p2', 'r1'))
+        self.assertFalse(subacl.is_allowed('user1', 'p1', 'r2'))
+        self.assertTrue(subacl.is_allowed('user2', 'p2', 'r2'))
+
     def test_object_creation_from_json(self):
         test_dict = {
             'roles': ['superuser', ['user_1', ['superuser', ], ], 'user_2', ],
