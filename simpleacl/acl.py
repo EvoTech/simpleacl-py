@@ -370,6 +370,7 @@ class Acl(object):
 
     def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False, ret=0):
         """Returns True if role is allowed for given privilege in given given resource"""
+        # TODO: Refactor me in way https://github.com/python-rope/rope/tree/7d265872676cec114f1a709c978d82b4309bec5a/rope/base/oi/type_hinting/providers
         if resource is None:
             resource = ANY_RESOURCE
         role = self.get_role(role)
