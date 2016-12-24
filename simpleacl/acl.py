@@ -39,6 +39,11 @@ ANY_PRIVILEGE = 'any'
 ANY_RESOURCE = 'any'
 
 
+class IWalker(object):
+    def __call__(self, role, privilege, resource, callback):
+        raise NotImplementedError
+
+
 class ObjectBase(object):
     """Abstract class"""
 
@@ -220,10 +225,11 @@ class SimpleBackend(object):
 class Acl(object):
     """Access control list."""
 
-    def __init__(self, backend_class=SimpleBackend):
+    def __init__(self, backend_factory=SimpleBackend, walker=None):
         """Constructor."""
         self.parent = None
-        self._backend = backend_class()
+        self._backend = backend_factory()
+        self._walker = walker or default_walker
         self.add_privilege(ANY_PRIVILEGE)
         self.add_resource(ANY_RESOURCE)
 
@@ -370,78 +376,24 @@ class Acl(object):
 
     def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False, ret=0):
         """Returns True if role is allowed for given privilege in given given resource"""
-        # TODO: Refactor me in way https://github.com/python-rope/rope/tree/7d265872676cec114f1a709c978d82b4309bec5a/rope/base/oi/type_hinting/providers
         if resource is None:
             resource = ANY_RESOURCE
         role = self.get_role(role)
         privilege = self.get_privilege(privilege)
         resource = self.get_resource(resource)
+        allow = self._walker(role, privilege, resource, self)
+        if allow is not None:
+            return allow
+        return undef
 
+    def walker_callback(self, role, privilege, resource):
         allow = self._backend.is_allowed(role, privilege, resource, None)
         if allow is not None:
             if isinstance(allow, string_types) and '.' in allow:
                 allow = resolve(allow)
-            return allow(self, role, privilege, resource) if isinstance(allow, collections.Callable) else allow
-
-        # Hierarchical support for privileges
-        if '.' in privilege.get_name():
-            parent = self.get_privilege(privilege.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(role, parent, resource, None, 1)
-            if allow is not None:
-                return allow
-        if ret == 1:
-            return undef
-
-        if privilege.get_name() != ANY_PRIVILEGE:
-            allow = self.is_allowed(role, ANY_PRIVILEGE, resource, None, 2)
-            if allow is not None:
-                return allow
-        if ret == 2:
-            return undef
-
-        # Hierarchical support for resource
-        if '.' in resource.get_name():
-            parent = self.get_resource(resource.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(role, privilege, parent, None, 3)
-            if allow is not None:
-                return allow
-        if ret == 3:
-            return undef
-
-        # Parents support for resources
-        for parent in resource.get_parents():
-            allow = self.is_allowed(role, privilege, parent, None, 4)
-            if allow is not None:
-                return allow
-        if ret == 4:
-            return undef
-
-        if resource.get_name() != ANY_RESOURCE:
-            allow = self.is_allowed(role, privilege, ANY_RESOURCE, None, 5)
-            if allow is not None:
-                return allow
-        if ret == 5:
-            return undef
-
-        # Hierarchical support for roles
-        if '.' in role.get_name():
-            parent = self.get_role(role.get_name().rsplit('.', 1).pop(0))
-            allow = self.is_allowed(parent, privilege, resource, None, 6)
-            if allow is not None:
-                return allow
-        if ret == 6:
-            return undef
-
-        # Parents support for roles
-        for parent in role.get_parents(resource, self):
-            allow = self.is_allowed(parent, privilege, resource, None, 7)
-            if allow is not None:
-                return allow
-
-        if ret == 0 and self.parent:
-            return self.parent.is_allowed(role, privilege, resource, undef)
-
-        return undef
+                if isinstance(allow, collections.Callable):
+                    allow = allow(self, role, privilege, resource)
+        return allow
 
     def bulk_load(self, json_or_dict, resource=ANY_RESOURCE):
         """You can store your roles, privileges and allow list (many to many)
@@ -491,6 +443,120 @@ class Acl(object):
         obj = cls()
         obj.bulk_load(json_or_dict)
         return obj
+
+
+class HierarchicalWalker(IWalker):
+    def __init__(self, arg, parents_accessor, delegate):
+        """
+        :type arg: str
+        :type parents_accessor: collections.Callable
+        :type delegate: simpleacl.acl.IWalker
+        """
+        self._arg = arg
+        self._parents_accessor = parents_accessor
+        self._delegate = delegate
+
+    def __call__(self, role, privilege, resource, acl):
+        kwargs = locals().copy()
+        kwargs.pop('self')
+        current = kwargs[self._arg]
+        queue = [current]
+        while queue:
+            current = queue.pop(0)
+            new_kwargs = kwargs.copy()
+            new_kwargs[self._arg] = current
+            result = self._delegate(**new_kwargs)
+            if result is not None:
+                return result
+            queue.extend(self._parents_accessor(**new_kwargs))
+
+
+class CompositeWalker(IWalker):
+    def __init__(self, *delegates):
+        """
+        :type delegates: list[simpleacl.acl.IWalker]
+        """
+        self._delegates = delegates
+
+    def __call__(self, role, privilege, resource, acl):
+        for delegate in self._delegates:
+            result = delegate(role, privilege, resource, acl)
+            if result is not None:
+                return result
+
+
+class SubstituteWalker(IWalker):
+    def __init__(self, arg, substitute_accessor, delegate):
+        """
+        :type arg: str
+        :type substitute_accessor: collections.Callable
+        :type delegate: simpleacl.acl.IWalker
+        """
+        self._arg = arg
+        self._substitute_accessor = substitute_accessor
+        self._delegate = delegate
+
+    def __call__(self, role, privilege, resource, acl):
+        kwargs = locals().copy()
+        kwargs.pop('self')
+        result = self._delegate(role, privilege, resource, acl)
+        if result is None:
+            kwargs[self._arg] = self._substitute_accessor(**kwargs)
+            return self._delegate(**kwargs)
+
+
+class CallWalker(IWalker):
+    def __init__(self, delegate):
+        """
+        :type delegate: simpleacl.acl.IWalker
+        """
+        self._delegate = delegate
+
+    def __call__(self, role, privilege, resource, acl):
+        return self._delegate(role, privilege, resource, acl)
+
+
+default_walker = HierarchicalWalker(
+    'acl',
+    (lambda role, privilege, resource, acl: [acl.parent] if acl.parent else []),
+        HierarchicalWalker(
+        'role',
+        (lambda role, privilege, resource, acl: role.get_parents(resource, acl)),
+        HierarchicalWalker(
+            'role',
+            (lambda role, privilege, resource, acl: [acl.get_role(
+                role.get_name().rsplit('.', 1).pop(0)
+            )] if '.' in role.get_name() else []),
+            SubstituteWalker(
+                'resource',
+                (lambda role, privilege, resource, acl: acl.get_resource(ANY_RESOURCE)),
+                HierarchicalWalker(
+                    'resource',
+                    (lambda role, privilege, resource, acl: resource.get_parents()),
+                    HierarchicalWalker(
+                        'resource',
+                        (lambda role, privilege, resource, acl: [acl.get_resource(
+                            resource.get_name().rsplit('.', 1).pop(0)
+                        )] if '.' in resource.get_name() else []),
+                        SubstituteWalker(
+                            'privilege',
+                            (lambda role, privilege, resource, acl: acl.get_privilege(ANY_PRIVILEGE)),
+                            HierarchicalWalker(
+                                'privilege',
+                                (lambda role, privilege, resource, acl: [acl.get_privilege(
+                                    privilege.get_name().rsplit('.', 1).pop(0)
+                                )] if '.' in privilege.get_name() else []),
+                                CallWalker(
+                                    (lambda role, privilege, resource, acl: acl.walker_callback(role, privilege, resource))
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    )
+)
 
 
 def is_list(v):
