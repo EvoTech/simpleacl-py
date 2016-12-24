@@ -500,9 +500,11 @@ class SubstituteWalker(IWalker):
         kwargs = locals().copy()
         kwargs.pop('self')
         result = self._delegate(role, privilege, resource, acl)
-        if result is None:
-            kwargs[self._arg] = self._substitute_accessor(**kwargs)
-            return self._delegate(**kwargs)
+        if result is not None:
+            return result
+
+        kwargs[self._arg] = self._substitute_accessor(**kwargs)
+        return self._delegate(**kwargs)
 
 
 class CallWalker(IWalker):
