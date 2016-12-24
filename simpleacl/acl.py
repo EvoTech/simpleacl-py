@@ -374,7 +374,7 @@ class Acl(object):
         """Removes a "deny" rule from the ACL"""
         return self.remove_rule(role, privileges, resource, False)
 
-    def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False, ret=0):
+    def is_allowed(self, role, privilege, resource=ANY_RESOURCE, undef=False):
         """Returns True if role is allowed for given privilege in given given resource"""
         if resource is None:
             resource = ANY_RESOURCE
