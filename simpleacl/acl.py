@@ -76,35 +76,46 @@ class ObjectBase(object):
 class Role(ObjectBase):
     """Holds a role value"""
 
+    class LoopResourceHierarchy(object):
+        def __init__(self, parents_accessor, delegate):
+            """
+            :type parents_accessor: collections.Callable
+            :type delegate: collections.Callable
+            """
+            self._parents_accessor = parents_accessor
+            self._delegate = delegate
+
+        def __call__(self, resource, acl):
+            parent_roles = []
+            bases_getter = partial(self._parents_accessor, acl=acl)
+            resource_bases = get_mro(resource, bases_getter)
+            for resource_base in resource_bases:
+                parent_roles += self._delegate(resource_base, acl)
+            return parent_roles
+
     def __init__(self, name):
         self.name = name
         self._parents = {}
+        self._loop_resource_hierarchy = self.LoopResourceHierarchy(
+            (lambda resource, acl: resource.get_parents()),
+            self.LoopResourceHierarchy(
+                (lambda resource, acl: [acl.get_resource(
+                    resource.get_name().rsplit('.', 1).pop(0)
+                )] if '.' in resource.get_name() else []),
+                (lambda resource, acl: self._parents.get(resource, [])[:])  # Order is important, so use the list(), not set
+            )
+        )
 
     def add_parent(self, parent, resource):
         parents = self._parents.setdefault(resource, [])
         if parent not in parents:
             parents.append(parent)
 
-    def get_parents(self, resource, acl, ret=0):
-        parents = self._parents.get(resource, [])  # Order is important, so use the list(), not set
-        parents = parents[:]
+    def get_parents(self, resource, acl):
+        parents = self._loop_resource_hierarchy(resource, acl)
         any_resource = acl.get_resource(ANY_RESOURCE)
-
-        # Parents support for resources
-        for parent in resource.get_parents():
-            parents += self.get_parents(parent, acl, 1)
-        if ret == 1:
-            return parents
-
-        # Hierarchical support for resource
-        if '.' in resource.get_name():
-            parent = acl.get_resource(resource.get_name().rsplit('.', 1).pop(0))
-            parents += self.get_parents(parent, acl, 2)
-        if ret == 2:
-            return parents
-
-        if ret == 0 and resource != any_resource:
-            parents = parents + self._parents.get(any_resource, [])
+        if resource != any_resource:
+            parents += self._parents.get(any_resource, [])
         return parents
 
 
@@ -468,7 +479,6 @@ class HierarchicalWalker(IWalker):
             return self._parents_accessor(**new_kwargs)
 
         bases = get_mro(current, bases_getter)
-        queue = [current]
         for base in bases:
             new_kwargs = kwargs.copy()
             new_kwargs[self._arg] = base
