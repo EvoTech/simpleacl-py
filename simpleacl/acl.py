@@ -19,6 +19,7 @@
 from __future__ import absolute_import, unicode_literals
 import sys
 import collections
+import c3linearize
 from functools import partial
 try:
     import simplejson as json
@@ -460,15 +461,20 @@ class HierarchicalWalker(IWalker):
         kwargs = locals().copy()
         kwargs.pop('self')
         current = kwargs[self._arg]
-        queue = [current]
-        while queue:
-            current = queue.pop(0)
+
+        def bases_getter(current):
             new_kwargs = kwargs.copy()
             new_kwargs[self._arg] = current
+            return self._parents_accessor(**new_kwargs)
+
+        bases = get_mro(current, bases_getter)
+        queue = [current]
+        for base in bases:
+            new_kwargs = kwargs.copy()
+            new_kwargs[self._arg] = base
             result = self._delegate(**new_kwargs)
             if result is not None:
                 return result
-            queue.extend(self._parents_accessor(**new_kwargs))
 
 
 class CompositeWalker(IWalker):
@@ -559,6 +565,10 @@ default_walker = HierarchicalWalker(
         )
     )
 )
+
+
+def get_mro(current, bases_getter):
+    return c3linearize.linearize(c3linearize.build_graph(current, bases_getter))[current]
 
 
 def is_list(v):

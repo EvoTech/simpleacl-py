@@ -23,6 +23,7 @@ sdict = {
     'keywords' : ['acl', 'simpleacl', 'access control list', 'auth list'],
     'license' : 'GPLv3 License',
     'packages' : ['simpleacl'],
+    'install_requires': ['C3Linearize'],
     'test_suite' : 'tests.all_tests',
     'classifiers' : [
         'Development Status :: 4 - Beta',
