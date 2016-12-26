@@ -1,8 +1,8 @@
 from __future__ import absolute_import, unicode_literals
 import inspect
 from threading import local
-from . import settings
-from . import Acl, ANY_RESOURCE, resolve
+from simpleacl import acl, settings, utils
+from simpleacl.constants import ANY_RESOURCE
 
 try:
     str = unicode  # Python 2.* compatible
@@ -84,7 +84,7 @@ def get_acl(thread_safe=True):
     try:
         return ctx.acl
     except AttributeError:
-        ctx.acl = Acl.create_instance(settings.INITIAL_DATA)
+        ctx.acl = acl.Acl.create_instance(settings.INITIAL_DATA)
     return ctx.acl
 
 
@@ -104,4 +104,4 @@ def get_resource_name(obj):
 
 
 if settings.ACL_GETTER != 'simpleacl.paste.get_acl':
-    get_acl = resolve(settings.ACL_GETTER)
+    get_acl = utils.resolve(settings.ACL_GETTER)
