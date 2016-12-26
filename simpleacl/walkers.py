@@ -45,11 +45,19 @@ class SubstituteRoleParentsWalker(interfaces.IRoleParentsWalker):
         :type acl: simpleacl.interfaces.IAcl
         :rtype: tuple[simpleacl.interfaces.IRole]
         """
-        parent_roles = self._delegate(role, resource, acl)
-        for substitute in self._substitute_accessor(role, resource, acl):
-            if role != substitute:
-                parent_roles += self._delegate(role, substitute, acl)
+
+        parent_roles = ()
+        for current_resource in self._get_resources(role, resource, acl):
+            parent_roles += self._delegate(role, current_resource, acl)
         return parent_roles
+
+    def _get_resources(self, role, resource, acl):
+        substitutes = self._substitute_accessor(role, resource, acl)
+        resources = [resource]
+        for i in substitutes:
+            if i not in resources:
+                resources.append(i)
+        return resources
 
 
 class CallRoleParentsWalker(interfaces.IRoleParentsWalker):
