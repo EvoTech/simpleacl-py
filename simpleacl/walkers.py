@@ -45,7 +45,6 @@ class SubstituteRoleParentsWalker(interfaces.IRoleParentsWalker):
         :type acl: simpleacl.interfaces.IAcl
         :rtype: tuple[simpleacl.interfaces.IRole]
         """
-
         parent_roles = ()
         for current_resource in self._get_resources(role, resource, acl):
             parent_roles += self._delegate(role, current_resource, acl)
@@ -170,12 +169,20 @@ class SubstituteAclWalker(interfaces.IAclWalker):
         """
         kwargs = locals().copy()
         kwargs.pop('self')
-        result = self._delegate(role, privilege, resource, acl)
-        if result is not None:
-            return result
+        for item in self._get_items(**kwargs):
+            new_kwargs = kwargs.copy()
+            new_kwargs[self._arg] = item
+            result = self._delegate(**new_kwargs)
+            if result is not None:
+                return result
 
-        kwargs[self._arg] = self._substitute_accessor(**kwargs)
-        return self._delegate(**kwargs)
+    def _get_items(self, **kwargs):
+        substitutes = self._substitute_accessor(**kwargs)
+        items = [kwargs[self._arg]]
+        for i in substitutes:
+            if i not in items:
+                items.append(i)
+        return items
 
 
 class CallAclWalker(interfaces.IAclWalker):
@@ -209,7 +216,7 @@ default_acl_walker = HierarchicalAclWalker(
             ),) if '.' in role.get_name() else ()),
             SubstituteAclWalker(
                 'resource',
-                (lambda role, privilege, resource, acl: acl.get_resource(ANY_RESOURCE)),
+                (lambda role, privilege, resource, acl: (acl.get_resource(ANY_RESOURCE),)),
                 HierarchicalAclWalker(
                     'resource',
                     (lambda role, privilege, resource, acl: resource.get_parents()),
@@ -220,7 +227,7 @@ default_acl_walker = HierarchicalAclWalker(
                         ),) if '.' in resource.get_name() else ()),
                         SubstituteAclWalker(
                             'privilege',
-                            (lambda role, privilege, resource, acl: acl.get_privilege(ANY_PRIVILEGE)),
+                            (lambda role, privilege, resource, acl: (acl.get_privilege(ANY_PRIVILEGE),)),
                             HierarchicalAclWalker(
                                 'privilege',
                                 (lambda role, privilege, resource, acl: (acl.get_privilege(
