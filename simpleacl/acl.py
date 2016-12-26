@@ -19,14 +19,14 @@
 from __future__ import absolute_import, unicode_literals
 import sys
 import collections
-import c3linearize
 from functools import partial
 try:
     import simplejson as json
 except:
     import json
 
-from simpleacl.exceptions import MissingRole, MissingPrivilege, MissingResource
+from simpleacl import exceptions, interfaces, walkers
+from simpleacl.constants import ANY_PRIVILEGE, ANY_RESOURCE
 
 try:
     str = unicode  # Python 2.* compatible
@@ -36,16 +36,8 @@ except NameError:
     string_types = (str,)
     integer_types = (int,)
 
-ANY_PRIVILEGE = 'any'
-ANY_RESOURCE = 'any'
 
-
-class IWalker(object):
-    def __call__(self, role, privilege, resource, callback):
-        raise NotImplementedError
-
-
-class ObjectBase(object):
+class Entity(interfaces.IEntity):
     """Abstract class"""
 
     def __init__(self, name):
@@ -73,38 +65,13 @@ class ObjectBase(object):
         return self.name
 
 
-class Role(ObjectBase):
+class Role(Entity, interfaces.IRole):
     """Holds a role value"""
 
-    class LoopResourceHierarchy(object):
-        def __init__(self, parents_accessor, delegate):
-            """
-            :type parents_accessor: collections.Callable
-            :type delegate: collections.Callable
-            """
-            self._parents_accessor = parents_accessor
-            self._delegate = delegate
-
-        def __call__(self, resource, acl):
-            parent_roles = []
-            bases_getter = partial(self._parents_accessor, acl=acl)
-            resource_bases = get_mro(resource, bases_getter)
-            for resource_base in resource_bases:
-                parent_roles += self._delegate(resource_base, acl)
-            return parent_roles
-
-    def __init__(self, name):
+    def __init__(self, name, walker=None):
         self.name = name
-        self._parents = {}
-        self._loop_resource_hierarchy = self.LoopResourceHierarchy(
-            (lambda resource, acl: resource.get_parents()),
-            self.LoopResourceHierarchy(
-                (lambda resource, acl: [acl.get_resource(
-                    resource.get_name().rsplit('.', 1).pop(0)
-                )] if '.' in resource.get_name() else []),
-                (lambda resource, acl: self._parents.get(resource, [])[:])  # Order is important, so use the list(), not set
-            )
-        )
+        self._parents = collections.defaultdict(list)  # Order is important, so use the list(), not set
+        self._walk = walker or walkers.default_role_walker
 
     def add_parent(self, parent, resource):
         parents = self._parents.setdefault(resource, [])
@@ -112,14 +79,13 @@ class Role(ObjectBase):
             parents.append(parent)
 
     def get_parents(self, resource, acl):
-        parents = self._loop_resource_hierarchy(resource, acl)
-        any_resource = acl.get_resource(ANY_RESOURCE)
-        if resource != any_resource:
-            parents += self._parents.get(any_resource, [])
-        return parents
+        return self._walk(self, resource, acl)
+
+    def get_plain_parents(self, resource, acl):
+        return tuple(self._parents[resource])
 
 
-class BoundRole(ObjectBase):
+class BoundRole(Entity, interfaces.IRole):
 
     def __init__(self, role, acl):
         self.name = role.name
@@ -133,12 +99,12 @@ class BoundRole(ObjectBase):
         raise AttributeError
 
 
-class Privilege(ObjectBase):
+class Privilege(Entity, interfaces.IPrivilege):
     """Holds a privilege value"""
     pass
 
 
-class Resource(ObjectBase):
+class Resource(Entity, interfaces.IResource):
     """Holds a role value"""
 
     def __init__(self, name):
@@ -165,7 +131,7 @@ class Resource(ObjectBase):
         raise NotImplementedError
 
 
-class SimpleBackend(object):
+class SimpleBackend(interfaces.IBackend):
     """A simple storage."""
 
     role_class = Role
@@ -188,7 +154,7 @@ class SimpleBackend(object):
         try:
             return self._roles[name]
         except KeyError:
-            raise MissingRole('Missing Role "{0}"'.format(name))
+            raise exceptions.MissingRole('Missing Role "{0}"'.format(name))
 
     def add_privilege(self, instance):
         """Adds privilege"""
@@ -199,7 +165,7 @@ class SimpleBackend(object):
         try:
             return self._privileges[name]
         except KeyError:
-            raise MissingPrivilege('Missing Privilege "{0}"'.format(name))
+            raise exceptions.MissingPrivilege('Missing Privilege "{0}"'.format(name))
 
     def add_resource(self, instance):
         """Adds privilege"""
@@ -210,7 +176,7 @@ class SimpleBackend(object):
         try:
             return self._resources[name]
         except KeyError:
-            raise MissingResource('Missing Resource "{0}"'.format(name))
+            raise exceptions.MissingResource('Missing Resource "{0}"'.format(name))
 
     def add_rule(self, role, privilege, resource, allow=True):
         """Adds rule to the ACL"""
@@ -234,14 +200,14 @@ class SimpleBackend(object):
             return undef
 
 
-class Acl(object):
+class Acl(interfaces.IAcl):
     """Access control list."""
 
     def __init__(self, backend_factory=SimpleBackend, walker=None):
         """Constructor."""
         self.parent = None
         self._backend = backend_factory()
-        self._walker = walker or default_walker
+        self._walk = walker or walkers.default_acl_walker
         self.add_privilege(ANY_PRIVILEGE)
         self.add_resource(ANY_RESOURCE)
 
@@ -252,7 +218,7 @@ class Acl(object):
         elif isinstance(name_or_instance, string_types):
             try:
                 instance = self.get_role(name_or_instance)
-            except MissingRole:
+            except exceptions.MissingRole:
                 instance = self._backend.role_class(name_or_instance)
         else:
             raise Exception('Unknown role type: {0}'.format(type(name_or_instance).__name__))
@@ -280,7 +246,7 @@ class Acl(object):
         else:
             try:
                 instance = self._backend.get_role(name_or_instance)
-            except MissingRole:
+            except exceptions.MissingRole:
                 if self.parent is None:
                     raise
                 return self.parent.get_role(name_or_instance)
@@ -296,7 +262,7 @@ class Acl(object):
         elif isinstance(name_or_instance, string_types):
             try:
                 instance = self.get_privilege(name_or_instance)
-            except MissingPrivilege:
+            except exceptions.MissingPrivilege:
                 instance = self._backend.privilege_class(name_or_instance)
         else:
             raise Exception('Unknown privilege type: {0}'.format(type(name_or_instance).__name__))
@@ -314,7 +280,7 @@ class Acl(object):
             return name_or_instance
         try:
             return self._backend.get_privilege(name_or_instance)
-        except MissingPrivilege:
+        except exceptions.MissingPrivilege:
             if self.parent is None:
                 raise
             return self.parent.get_privilege(name_or_instance)
@@ -326,7 +292,7 @@ class Acl(object):
         elif isinstance(name_or_instance, string_types):
             try:
                 instance = self.get_resource(name_or_instance)
-            except MissingResource:
+            except exceptions.MissingResource:
                 instance = self._backend.resource_class(name_or_instance)
         else:
             raise Exception('Unknown privilege type: {0}'.format(type(name_or_instance).__name__))
@@ -349,7 +315,7 @@ class Acl(object):
             return name_or_instance
         try:
             return self._backend.get_resource(name_or_instance)
-        except MissingResource:
+        except exceptions.MissingResource:
             if self.parent is None:
                 raise
             return self.parent.get_resource(name_or_instance)
@@ -393,12 +359,12 @@ class Acl(object):
         role = self.get_role(role)
         privilege = self.get_privilege(privilege)
         resource = self.get_resource(resource)
-        allow = self._walker(role, privilege, resource, self)
+        allow = self._walk(role, privilege, resource, self)
         if allow is not None:
             return allow
         return undef
 
-    def walker_callback(self, role, privilege, resource):
+    def is_plain_allowed(self, role, privilege, resource):
         allow = self._backend.is_allowed(role, privilege, resource, None)
         if allow is not None:
             if isinstance(allow, string_types) and '.' in allow:
@@ -457,130 +423,6 @@ class Acl(object):
         return obj
 
 
-class HierarchicalWalker(IWalker):
-    def __init__(self, arg, parents_accessor, delegate):
-        """
-        :type arg: str
-        :type parents_accessor: collections.Callable
-        :type delegate: simpleacl.acl.IWalker
-        """
-        self._arg = arg
-        self._parents_accessor = parents_accessor
-        self._delegate = delegate
-
-    def __call__(self, role, privilege, resource, acl):
-        kwargs = locals().copy()
-        kwargs.pop('self')
-        current = kwargs[self._arg]
-
-        def bases_getter(current):
-            new_kwargs = kwargs.copy()
-            new_kwargs[self._arg] = current
-            return self._parents_accessor(**new_kwargs)
-
-        bases = get_mro(current, bases_getter)
-        for base in bases:
-            new_kwargs = kwargs.copy()
-            new_kwargs[self._arg] = base
-            result = self._delegate(**new_kwargs)
-            if result is not None:
-                return result
-
-
-class CompositeWalker(IWalker):
-    def __init__(self, *delegates):
-        """
-        :type delegates: list[simpleacl.acl.IWalker]
-        """
-        self._delegates = delegates
-
-    def __call__(self, role, privilege, resource, acl):
-        for delegate in self._delegates:
-            result = delegate(role, privilege, resource, acl)
-            if result is not None:
-                return result
-
-
-class SubstituteWalker(IWalker):
-    def __init__(self, arg, substitute_accessor, delegate):
-        """
-        :type arg: str
-        :type substitute_accessor: collections.Callable
-        :type delegate: simpleacl.acl.IWalker
-        """
-        self._arg = arg
-        self._substitute_accessor = substitute_accessor
-        self._delegate = delegate
-
-    def __call__(self, role, privilege, resource, acl):
-        kwargs = locals().copy()
-        kwargs.pop('self')
-        result = self._delegate(role, privilege, resource, acl)
-        if result is not None:
-            return result
-
-        kwargs[self._arg] = self._substitute_accessor(**kwargs)
-        return self._delegate(**kwargs)
-
-
-class CallWalker(IWalker):
-    def __init__(self, delegate):
-        """
-        :type delegate: simpleacl.acl.IWalker
-        """
-        self._delegate = delegate
-
-    def __call__(self, role, privilege, resource, acl):
-        return self._delegate(role, privilege, resource, acl)
-
-
-default_walker = HierarchicalWalker(
-    'acl',
-    (lambda role, privilege, resource, acl: [acl.parent] if acl.parent else []),
-        HierarchicalWalker(
-        'role',
-        (lambda role, privilege, resource, acl: role.get_parents(resource, acl)),
-        HierarchicalWalker(
-            'role',
-            (lambda role, privilege, resource, acl: [acl.get_role(
-                role.get_name().rsplit('.', 1).pop(0)
-            )] if '.' in role.get_name() else []),
-            SubstituteWalker(
-                'resource',
-                (lambda role, privilege, resource, acl: acl.get_resource(ANY_RESOURCE)),
-                HierarchicalWalker(
-                    'resource',
-                    (lambda role, privilege, resource, acl: resource.get_parents()),
-                    HierarchicalWalker(
-                        'resource',
-                        (lambda role, privilege, resource, acl: [acl.get_resource(
-                            resource.get_name().rsplit('.', 1).pop(0)
-                        )] if '.' in resource.get_name() else []),
-                        SubstituteWalker(
-                            'privilege',
-                            (lambda role, privilege, resource, acl: acl.get_privilege(ANY_PRIVILEGE)),
-                            HierarchicalWalker(
-                                'privilege',
-                                (lambda role, privilege, resource, acl: [acl.get_privilege(
-                                    privilege.get_name().rsplit('.', 1).pop(0)
-                                )] if '.' in privilege.get_name() else []),
-                                CallWalker(
-                                    (lambda role, privilege, resource, acl: acl.walker_callback(role, privilege, resource))
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
-
-
-def get_mro(current, bases_getter):
-    return c3linearize.linearize(c3linearize.build_graph(current, bases_getter))[current]
-
-
 def is_list(v):
     return isinstance(v, (list, tuple))
 
@@ -603,6 +445,6 @@ try:
 except NameError:
     pass
 else:
-    for cls in (ObjectBase,):
+    for cls in (Entity,):
         cls.__unicode__ = cls.__str__
         cls.__str__ = lambda self: self.__unicode__().encode('utf-8')
