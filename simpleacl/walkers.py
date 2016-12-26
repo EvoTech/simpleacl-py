@@ -76,25 +76,32 @@ class CallRoleParentsWalker(interfaces.IRoleParentsWalker):
         return self._delegate(role, resource, acl)
 
 
-default_role_walker = SubstituteRoleParentsWalker(
-    (lambda role, resource, acl: (acl.get_resource(ANY_RESOURCE),)),
-    HierarchicalRoleParentsWalker(
-        (lambda role, resource, acl: resource.get_parents()),
-        HierarchicalRoleParentsWalker(
-            (lambda role, resource, acl: (acl.get_resource(
-                resource.get_name().rsplit('.', 1).pop(0)
-            ),) if '.' in resource.get_name() else ()),
-            (lambda role, resource, acl: role.get_plain_parents(resource, acl))
-        )
-    )
-)
+class CompositeAclWalker(interfaces.IAclWalker):
+    def __init__(self, *delegates):
+        """
+        :type delegates: list[simpleacl.interfaces.IAclWalker]
+        """
+        self._delegates = delegates
+
+    def __call__(self, role, privilege, resource, acl):
+        """
+        :type role: simpleacl.interfaces.IRole
+        :type privilege: simpleacl.interfaces.IPrivilege
+        :type resource: simpleacl.interfaces.IResource
+        :type acl: simpleacl.interfaces.IAcl
+        :rtype: bool or None
+        """
+        for delegate in self._delegates:
+            result = delegate(role, privilege, resource, acl)
+            if result is not None:
+                return result
 
 
 class HierarchicalAclWalker(interfaces.IAclWalker):
     def __init__(self, arg, parents_accessor, delegate):
         """
         :type arg: str
-        :type parents_accessor: collections.Callable
+        :type parents_accessor: simpleacl.interfaces.IRole, simpleacl.interfaces.IPrivilege, simpleacl.interfaces.IResource, simpleacl.interfaces.IAcl) -> tuple[simpleacl.interfaces.IEntity]
         :type delegate: simpleacl.interfaces.IAclWalker
         """
         self._arg = arg
@@ -127,32 +134,11 @@ class HierarchicalAclWalker(interfaces.IAclWalker):
                 return result
 
 
-class CompositeAclWalker(interfaces.IAclWalker):
-    def __init__(self, *delegates):
-        """
-        :type delegates: list[simpleacl.interfaces.IAclWalker]
-        """
-        self._delegates = delegates
-
-    def __call__(self, role, privilege, resource, acl):
-        """
-        :type role: simpleacl.interfaces.IRole
-        :type privilege: simpleacl.interfaces.IPrivilege
-        :type resource: simpleacl.interfaces.IResource
-        :type acl: simpleacl.interfaces.IAcl
-        :rtype: bool or None
-        """
-        for delegate in self._delegates:
-            result = delegate(role, privilege, resource, acl)
-            if result is not None:
-                return result
-
-
 class SubstituteAclWalker(interfaces.IAclWalker):
     def __init__(self, arg, substitute_accessor, delegate):
         """
         :type arg: str
-        :type substitute_accessor: collections.Callable
+        :type substitute_accessor: simpleacl.interfaces.IRole, simpleacl.interfaces.IPrivilege, simpleacl.interfaces.IResource, simpleacl.interfaces.IAcl) -> tuple[simpleacl.interfaces.IEntity]
         :type delegate: simpleacl.interfaces.IAclWalker
         """
         self._arg = arg
@@ -202,6 +188,19 @@ class CallAclWalker(interfaces.IAclWalker):
         """
         return self._delegate(role, privilege, resource, acl)
 
+
+default_role_walker = SubstituteRoleParentsWalker(
+    (lambda role, resource, acl: (acl.get_resource(ANY_RESOURCE),)),
+    HierarchicalRoleParentsWalker(
+        (lambda role, resource, acl: resource.get_parents()),
+        HierarchicalRoleParentsWalker(
+            (lambda role, resource, acl: (acl.get_resource(
+                resource.get_name().rsplit('.', 1).pop(0)
+            ),) if '.' in resource.get_name() else ()),
+            (lambda role, resource, acl: role.get_plain_parents(resource, acl))
+        )
+    )
+)
 
 default_acl_walker = HierarchicalAclWalker(
     'acl',
