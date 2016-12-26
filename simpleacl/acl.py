@@ -38,8 +38,7 @@ except NameError:
 
 
 class Entity(interfaces.IEntity):
-    """Abstract class"""
-
+    """Abstract Entity class"""
     def __init__(self, name):
         self.name = name
 
@@ -67,7 +66,6 @@ class Entity(interfaces.IEntity):
 
 class Role(Entity, interfaces.IRole):
     """Holds a role value"""
-
     def __init__(self, name, walker=None):
         self.name = name
         self._parents = collections.defaultdict(list)  # Order is important, so use the list(), not set
@@ -86,7 +84,6 @@ class Role(Entity, interfaces.IRole):
 
 
 class BoundRole(Entity, interfaces.IRole):
-
     def __init__(self, role, acl):
         self.name = role.name
         self.role = role
@@ -106,7 +103,6 @@ class Privilege(Entity, interfaces.IPrivilege):
 
 class Resource(Entity, interfaces.IResource):
     """Holds a role value"""
-
     def __init__(self, name):
         """For example, name == 'blog.post.15'.
 
@@ -133,7 +129,6 @@ class Resource(Entity, interfaces.IResource):
 
 class SimpleBackend(interfaces.IBackend):
     """A simple storage."""
-
     role_class = Role
     privilege_class = Privilege
     resource_class = Resource
@@ -202,7 +197,6 @@ class SimpleBackend(interfaces.IBackend):
 
 class Acl(interfaces.IAcl):
     """Access control list."""
-
     def __init__(self, backend_factory=SimpleBackend, walker=None):
         """Constructor."""
         self.parent = None
@@ -322,7 +316,7 @@ class Acl(interfaces.IAcl):
 
     def add_rule(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Adds rule to the ACL"""
-        if not is_list(privileges):
+        if not utils.is_list(privileges):
             privileges = (privileges, )
         for priv in privileges:
             self._backend.add_rule(self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow)
@@ -330,7 +324,7 @@ class Acl(interfaces.IAcl):
 
     def remove_rule(self, role, privileges=ANY_PRIVILEGE, resource=ANY_RESOURCE, allow=True):
         """Removes rule from ACL"""
-        if not is_list(privileges):
+        if not utils.is_list(privileges):
             privileges = (privileges, )
         for priv in privileges:
             self._backend.remove_rule(self.get_role(role), self.get_privilege(priv), self.get_resource(resource), allow)
@@ -387,7 +381,7 @@ class Acl(interfaces.IAcl):
             clean = json_or_dict
 
         for value in clean.get('resources', ()):
-            if is_list(value):
+            if utils.is_list(value):
                 self.add_resource(*value)
             elif isinstance(value, dict):
                 self.add_resource(**value)
@@ -395,7 +389,7 @@ class Acl(interfaces.IAcl):
                 self.add_resource(value)
 
         for value in clean.get('roles', ()):
-            if is_list(value):
+            if utils.is_list(value):
                 self.add_role(*value)
             elif isinstance(value, dict):
                 self.add_role(**value)
@@ -421,10 +415,6 @@ class Acl(interfaces.IAcl):
         obj = cls()
         obj.bulk_load(json_or_dict)
         return obj
-
-
-def is_list(v):
-    return isinstance(v, (list, tuple))
 
 
 # Python 2.* compatible

@@ -14,6 +14,10 @@ def get_mro(current, bases_getter):
     return c3linearize.linearize(c3linearize.build_graph(current, bases_getter))[current]
 
 
+def is_list(v):
+    return isinstance(v, (list, tuple))
+
+
 def resolve(str_or_obj):
     """Returns object from string"""
     if not isinstance(str_or_obj, string_types):
